@@ -1,12 +1,14 @@
 import Image from "next/image";
 import Link from "next/link";
 import NavTabs from "@/components/NavTabs";
+import { getStaff } from "@/lib/staff";
 
-export default function SocietyHeader({ right }: { right?: React.ReactNode }) {
+export default async function SocietyHeader({ right }: { right?: React.ReactNode }) {
+  const staff = !!(await getStaff());
   return (
     <header className="mb-6 border-b border-slate-400 pb-3">
       <div className="flex items-center gap-4">
-        <Link href="/" className="shrink-0">
+        <Link href={staff ? "/staff" : "/"} className="shrink-0">
           <Image src="/logo.png" alt="Sri Ram Garden by Jains" width={123} height={62} priority className="h-14 w-auto sm:h-16" />
         </Link>
         <div className="min-w-0 flex-1">
@@ -20,7 +22,7 @@ export default function SocietyHeader({ right }: { right?: React.ReactNode }) {
         </div>
         {right && <div className="shrink-0 self-start text-sm">{right}</div>}
       </div>
-      <NavTabs />
+      <NavTabs staff={staff} />
     </header>
   );
 }

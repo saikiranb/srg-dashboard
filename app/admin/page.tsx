@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getStaff } from "@/lib/staff";
 import { getTasks } from "@/lib/db";
 import { getStaffList } from "@/lib/service";
 import AdminStaff from "@/components/AdminStaff";
@@ -13,6 +15,7 @@ export const metadata = { title: "Admin · Apartment Tasks", robots: { index: fa
 
 export default async function Admin() {
   const admin = await isAdmin();
+  if (!admin && (await getStaff())) redirect("/staff");
   return (
     <main className="max-w-3xl mx-auto px-4 py-6">
       <SocietyHeader right={

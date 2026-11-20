@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getStaff } from "@/lib/staff";
 import { getTasks } from "@/lib/db";
 import TaskBoard from "@/components/TaskBoard";
 import SocietyHeader from "@/components/SocietyHeader";
@@ -6,6 +8,7 @@ import SocietyHeader from "@/components/SocietyHeader";
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
+  if (await getStaff()) redirect("/staff"); // staff accounts only use the requests module
   const tasks = await getTasks().catch(() => null);
   return (
     <main className="max-w-3xl mx-auto px-4 py-6">
