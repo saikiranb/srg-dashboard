@@ -1,7 +1,19 @@
 // Flat-code parser: "b4g" -> B-4G, "bgg" -> B-GG (Block B, Ground floor, unit G), "a6i" -> A-6I
-export const BLOCKS = "AB";        // blocks in the society
-export const MAX_FLOOR = 25;
-export const UNITS = "ABCDEFGHIJKL"; // flat letters per floor
+// Society layout (210 flats). A block: residential floors 6-12 only (lower floors are commercial, not ours).
+// B block: ground (G) to 14th floor.
+export const LAYOUT: Record<string, { ground: boolean; min: number; max: number }> = {
+  A: { ground: false, min: 6, max: 12 },
+  B: { ground: true, min: 1, max: 14 },
+};
+export const BLOCKS = Object.keys(LAYOUT).join("");
+export const UNITS = "ABCDEFGHIJKL"; // flat letters per floor (narrow this once the exact letters are confirmed)
+export const LAYOUT_HINT = "A block: floors 6–12 · B block: ground (G) to 14";
+
+export function floorExists(block: string, floor: string) {
+  const l = LAYOUT[block];
+  if (!l) return false;
+  return floor === "G" ? l.ground : Number(floor) >= l.min && Number(floor) <= l.max;
+}
 export const MAX_FLATS_PER_REQUEST = 20;
 
 export type Flat = { code: string; block: string; floor: string; unit: string };
@@ -23,8 +35,7 @@ export function parseFlats(input: string): { flats: Flat[]; invalid: string[]; t
       if (!m) continue;
       const block = m[1].toUpperCase(), unit = m[3].toUpperCase();
       const floor = m[2] === "g" ? "G" : String(Number(m[2]));
-      const floorOk = floor === "G" || (Number(floor) >= 1 && Number(floor) <= MAX_FLOOR);
-      if (BLOCKS.includes(block) && floorOk && UNITS.includes(unit))
+      if (floorExists(block, floor) && UNITS.includes(unit))
         return { flat: { code: `${block}-${floor}${unit}`, block, floor, unit }, len: m[0].length };
     }
     return null;

@@ -1,7 +1,7 @@
 "use client";
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { raiseRequests } from "@/app/service-actions";
-import { parseFlats } from "@/lib/flats";
+import { parseFlats, LAYOUT_HINT } from "@/lib/flats";
 
 type Kind = "electrician" | "plumber";
 
@@ -30,9 +30,9 @@ export default function RaiseRequest({ allowed }: { allowed: Kind[] }) {
           <input type="hidden" name="kind" value={kind} />
           <label className="block text-sm font-medium">Flat numbers for the <b>{kind}</b>
             <textarea name="flats" value={text} onChange={(e) => setText(e.target.value)} rows={3} maxLength={600} autoFocus
-              placeholder="e.g. b4g a6i bgg   (B-4G, A-6I, B-Ground-G)" className="mt-1 w-full rounded-lg border px-3 py-2 text-base uppercase" />
+              placeholder="e.g. b4g a10i bgg   (B-4G, A-10I, B-Ground-G)" className="mt-1 w-full rounded-lg border px-3 py-2 text-base uppercase" />
           </label>
-          <p className="text-xs text-slate-500">Block + floor + flat letter, any style: <b>b4g</b>, <b>B 4 G</b>, <b>a6 i</b>, <b>A-6-I</b> · <b>bgg</b> = B block ground floor GG. Separate flats with a comma, space or new line.</p>
+          <p className="text-xs text-slate-500">Block + floor + flat letter, any style: <b>b4g</b>, <b>B 4 G</b>, <b>a6 i</b>, <b>A-6-I</b> · <b>bgg</b> = B block ground floor GG. Separate flats with a comma, space or new line. <span className="whitespace-nowrap">{LAYOUT_HINT}.</span></p>
           {(parsed.flats.length > 0 || parsed.invalid.length > 0) && (
             <div className="flex flex-wrap gap-2" aria-live="polite">
               {parsed.flats.map((f) => <span key={f.code} className="rounded-full bg-emerald-100 px-3 py-1 text-sm font-semibold text-emerald-800">{f.code}</span>)}

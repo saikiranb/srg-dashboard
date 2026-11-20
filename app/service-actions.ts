@@ -4,7 +4,7 @@ import { revalidatePath, updateTag } from "next/cache";
 import { notifyStaff } from "@/lib/push";
 import { redirect } from "next/navigation";
 import { ensureTable, sql } from "@/lib/db";
-import { parseFlats } from "@/lib/flats";
+import { parseFlats, LAYOUT_HINT } from "@/lib/flats";
 import { getStaff, kindsFor, staffLogin, staffLogout } from "@/lib/staff";
 
 const done = () => { updateTag("queue"); revalidatePath("/resident"); revalidatePath("/service"); revalidatePath("/staff"); revalidatePath("/staff/analytics"); };
@@ -35,7 +35,7 @@ export async function raiseRequests(_: unknown, fd: FormData) {
   if (kind !== "electrician" && kind !== "plumber") return { error: "Choose Electrician or Plumber" };
   const text = String(fd.get("flats") ?? "").slice(0, 600);
   const { flats, invalid, tooMany } = parseFlats(text);
-  if (invalid.length) return { error: `Not recognised: ${invalid.join(", ")}. Use format like b4g, a6i, bgg.` };
+  if (invalid.length) return { error: `Not a valid flat: ${invalid.join(", ")}. ${LAYOUT_HINT}. Format like b4g, a6i, bgg.` };
   if (tooMany) return { error: "Too many flats in one go (max 20)" };
   if (!flats.length) return { error: "Enter at least one flat, e.g. b4g" };
 
