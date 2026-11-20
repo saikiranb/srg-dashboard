@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { getTasks } from "@/lib/db";
+import { getStaffList } from "@/lib/service";
+import AdminStaff from "@/components/AdminStaff";
 import { isAdmin } from "@/lib/auth";
 import { logoutAction } from "@/app/actions";
 import AdminTasks from "@/components/AdminTasks";
@@ -20,7 +22,12 @@ export default async function Admin() {
         </div>
       } />
       <h2 className="text-lg font-bold uppercase tracking-wide text-center mb-5">Admin</h2>
-      {admin ? <AdminTasks tasks={await getTasks()} /> : <LoginForm />}
+      {admin ? (
+        <div className="space-y-8">
+          <AdminStaff staff={await getStaffList()} />
+          <AdminTasks tasks={await getTasks()} />
+        </div>
+      ) : <LoginForm />}
     </main>
   );
 }

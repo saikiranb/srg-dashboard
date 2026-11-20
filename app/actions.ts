@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { readSheet } from "read-excel-file/node";
 import { ensureTable, sql, STATUSES, PRIORITIES, LIMITS } from "@/lib/db";
 import { isAdmin, login, logout } from "@/lib/auth";
+import { hashPassword } from "@/lib/password";
 
 // ---------- helpers ----------
 async function guard() {
@@ -172,4 +173,42 @@ export async function importExcel(_: unknown, fd: FormData) {
   await q.transaction(stmts); // all-or-nothing
   done();
   return { ok: `Imported ${n} tasks` };
+}
+
+// ---------- staff accounts (admin only) ----------
+
+const ROLES = ["fm", "electrician", "plumber"] as const;
+const goodPassword = (p: string) => p.length >= 8 && p.length <= 72;
+
+export async function addStaff(_: unknown, fd: FormData) {
+  await guard(); await ensureTable();
+  const name = field(fd, "name", 80);
+  const mobile = field(fd, "mobile", 15).replace(/\D/g, "");
+  const role = ROLES.find((r) => r === field(fd, "role", 12));
+  const password = String(fd.get("password") ?? "");
+  if (!name) return { error: "Name is required" };
+  if (!/^[6-9]\d{9}$/.test(mobile)) return { error: "Enter a valid 10-digit mobile number" };
+  if (!role) return { error: "Choose a role" };
+  if (!goodPassword(password)) return { error: "Password must be 8-72 characters" };
+  const hash = await hashPassword(password);
+  const r = await sql()`INSERT INTO staff_users (name, mobile, role, password_hash) VALUES (${name}, ${mobile}, ${role}, ${hash})
+    ON CONFLICT (mobile) DO NOTHING RETURNING id`;
+  if (!r.length) return { error: "That mobile number is already registered" };
+  done();
+  return { ok: `Added ${name}` };
+}
+
+export async function resetStaffPassword(_: unknown, fd: FormData) {
+  await guard();
+  const password = String(fd.get("password") ?? "");
+  if (!goodPassword(password)) return { error: "Password must be 8-72 characters" };
+  await sql()`UPDATE staff_users SET password_hash=${await hashPassword(password)} WHERE id=${validId(fd.get("id"))}`;
+  done();
+  return { ok: "Password updated (user was signed out)" };
+}
+
+export async function setStaffActive(fd: FormData) {
+  await guard();
+  await sql()`UPDATE staff_users SET active=${fd.get("active") === "1"} WHERE id=${validId(fd.get("id"))}`;
+  done();
 }

@@ -24,19 +24,34 @@ function safeEqual(a: string, b: string) {
   return timingSafeEqual(sha(a), sha(b)); // equal-length digests -> constant-time compare
 }
 
-async function clientKey() {
+export async function clientKey(scope: string) {
   const h = await headers();
   const ip = (h.get("x-forwarded-for")?.split(",")[0] ?? h.get("x-real-ip") ?? "unknown").trim();
-  return createHash("sha256").update(`${ip}|${process.env.AUTH_SECRET}`).digest("hex"); // raw IPs are never stored
+  const hash = createHash("sha256").update(`${ip}|${process.env.AUTH_SECRET}`).digest("hex"); // raw IPs are never stored
+  return `${scope}:${hash}`;
 }
+export const hashKey = (scope: string, v: string) =>
+  `${scope}:${createHash("sha256").update(`${v}|${process.env.AUTH_SECRET}`).digest("hex")}`;
 
-async function tooManyAttempts(key: string) {
+export async function attemptsExceeded(key: string, max: number, scope?: string, maxGlobal?: number) {
   await ensureTable();
   const q = sql();
   const [a] = await q`SELECT count(*)::int AS n FROM login_attempts WHERE key=${key} AND at > now() - make_interval(mins => ${WINDOW_MIN})`;
-  const [g] = await q`SELECT count(*)::int AS n FROM login_attempts WHERE at > now() - make_interval(mins => ${WINDOW_MIN})`;
-  return a.n >= MAX_FAILS_PER_IP || g.n >= MAX_FAILS_GLOBAL;
+  if (a.n >= max) return true;
+  if (scope && maxGlobal) {
+    const [g] = await q`SELECT count(*)::int AS n FROM login_attempts WHERE key LIKE ${scope + ":%"} AND at > now() - make_interval(mins => ${WINDOW_MIN})`;
+    if (g.n >= maxGlobal) return true;
+  }
+  return false;
 }
+export async function recordFailure(...keys: string[]) {
+  const q = sql();
+  for (const k of keys) await q`INSERT INTO login_attempts (key) VALUES (${k})`;
+  await q`DELETE FROM login_attempts WHERE at < now() - interval '1 day'`;
+  await new Promise((r) => setTimeout(r, 600 + Math.random() * 400)); // slow down guessing
+}
+export const clearFailures = (key: string) => sql()`DELETE FROM login_attempts WHERE key=${key}`;
+export const lockoutMessage = `Too many attempts. Try again in ${WINDOW_MIN} minutes.`;
 
 export type LoginResult = { ok: true } | { ok: false; error: string };
 
@@ -45,19 +60,16 @@ export async function login(password: string): Promise<LoginResult> {
   if (!expected || expected.length < 12) return { ok: false, error: "Login is disabled (server not configured)" };
   if (password.length > 200) return { ok: false, error: "Invalid password" };
 
-  const key = await clientKey();
-  if (await tooManyAttempts(key))
-    return { ok: false, error: `Too many attempts. Try again in ${WINDOW_MIN} minutes.` };
+  const key = await clientKey("admin");
+  if (await attemptsExceeded(key, MAX_FAILS_PER_IP, "admin", MAX_FAILS_GLOBAL))
+    return { ok: false, error: lockoutMessage };
 
   if (!safeEqual(password, expected)) {
-    const q = sql();
-    await q`INSERT INTO login_attempts (key) VALUES (${key})`;
-    await q`DELETE FROM login_attempts WHERE at < now() - interval '1 day'`;
-    await new Promise((r) => setTimeout(r, 600 + Math.random() * 400)); // slow down guessing
+    await recordFailure(key);
     return { ok: false, error: "Invalid password" };
   }
 
-  await sql()`DELETE FROM login_attempts WHERE key=${key}`;
+  await clearFailures(key);
   const token = await new SignJWT({ role: "admin" })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuer(ISSUER).setAudience(AUDIENCE)

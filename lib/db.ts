@@ -45,6 +45,28 @@ export async function ensureTable() {
     at TIMESTAMPTZ NOT NULL DEFAULT now()
   )`;
   await q`CREATE INDEX IF NOT EXISTS login_attempts_key_at ON login_attempts (key, at)`;
+  await q`CREATE TABLE IF NOT EXISTS staff_users (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL CHECK (char_length(name) BETWEEN 1 AND 80),
+    mobile TEXT NOT NULL UNIQUE CHECK (mobile ~ '^[6-9][0-9]{9}$'),
+    role TEXT NOT NULL CHECK (role IN ('fm','electrician','plumber')),
+    password_hash TEXT NOT NULL,
+    active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`;
+  await q`CREATE TABLE IF NOT EXISTS service_requests (
+    id SERIAL PRIMARY KEY,
+    flat TEXT NOT NULL CHECK (flat ~ '^[A-Z]-([0-9]{1,2}|G)[A-Z]$'),
+    kind TEXT NOT NULL CHECK (kind IN ('electrician','plumber')),
+    status TEXT NOT NULL DEFAULT 'Open' CHECK (status IN ('Open','In Progress','Closed','Cancelled')),
+    created_by INT REFERENCES staff_users(id),
+    attended_by INT REFERENCES staff_users(id),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    attended_at TIMESTAMPTZ,
+    closed_at TIMESTAMPTZ
+  )`;
+  await q`CREATE UNIQUE INDEX IF NOT EXISTS service_one_active ON service_requests (flat, kind) WHERE status IN ('Open','In Progress')`;
+  await q`CREATE INDEX IF NOT EXISTS service_kind_status ON service_requests (kind, status, created_at)`;
   ready = true;
 }
 

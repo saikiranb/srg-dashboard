@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import NavTabs from "@/components/NavTabs";
 
 export default function SocietyHeader({ right }: { right?: React.ReactNode }) {
   return (
@@ -19,6 +20,7 @@ export default function SocietyHeader({ right }: { right?: React.ReactNode }) {
         </div>
         {right && <div className="shrink-0 self-start text-sm">{right}</div>}
       </div>
+      <NavTabs />
     </header>
   );
 }
