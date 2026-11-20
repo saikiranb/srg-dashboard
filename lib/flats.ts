@@ -8,6 +8,8 @@ export const LAYOUT: Record<string, BlockLayout> = {
   B: { ground: "ABCDEFGI", min: 1, max: 14, units: "ABCDEFGHIJ" },
 };
 export const BLOCKS = Object.keys(LAYOUT).join("");
+// Duplex flats: one flat over two floors. Any request for the upper code goes to the entrance flat.
+export const DUPLEX: Record<string, string> = { "B-4E": "B-3E" }; // B-3E + B-4E duplex, entrance from 3E
 export const LAYOUT_HINT = "A block: floors 6–12, flats A–I · B block: ground GA–GG & GI, floors 1–14 flats A–J";
 
 export function flatExists(block: string, floor: string, unit: string) {
@@ -23,7 +25,7 @@ export function allFlats(): string[] {
   const out: string[] = [];
   for (const [b, l] of Object.entries(LAYOUT)) {
     for (const u of l.ground) out.push(`${b}-G${u}`);
-    for (let f = l.min; f <= l.max; f++) for (const u of l.units) out.push(`${b}-${f}${u}`);
+    for (let f = l.min; f <= l.max; f++) for (const u of l.units) if (!DUPLEX[`${b}-${f}${u}`]) out.push(`${b}-${f}${u}`);
   }
   return out;
 }
@@ -50,7 +52,12 @@ export function parseFlats(input: string): { flats: Flat[]; invalid: string[]; t
       const block = m[1].toUpperCase(), unit = m[3].toUpperCase();
       const floor = m[2] === "g" ? "G" : String(Number(m[2]));
       if (flatExists(block, floor, unit))
-        return { flat: { code: `${block}-${floor}${unit}`, block, floor, unit }, len: m[0].length };
+      {
+        const raw = `${block}-${floor}${unit}`;
+        const code = DUPLEX[raw] ?? raw; // e.g. b4e -> B-3E (duplex entrance)
+        const [, f2, u2] = /^[A-Z]-(G|\d{1,2})([A-Z])$/.exec(code)!;
+        return { flat: { code, block, floor: f2, unit: u2 }, len: m[0].length };
+      }
     }
     return null;
   };
