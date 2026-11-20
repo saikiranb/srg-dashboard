@@ -11,7 +11,7 @@ function Reset({ id }: { id: number }) {
   return (
     <form action={a} className="mt-2 flex flex-wrap items-center gap-2">
       <input type="hidden" name="id" value={id} />
-      <input type="password" name="password" required minLength={8} maxLength={72} autoComplete="new-password" placeholder="New password (min 8)" className="rounded-lg border px-2 py-1.5 text-sm" />
+      <input type="password" name="password" required minLength={10} maxLength={72} autoComplete="new-password" placeholder="New password (min 10)" className="rounded-lg border px-2 py-1.5 text-sm" />
       <button disabled={p} className="rounded-lg border px-3 py-1.5 text-sm">Reset password</button>
       {s && "ok" in s && <span className="text-xs text-emerald-700">{s.ok}</span>}
       {s && "error" in s && <span className="text-xs text-red-600">{s.error}</span>}
@@ -32,7 +32,7 @@ export default function AdminStaff({ staff }: { staff: StaffRow[] }) {
           <option value="" disabled>Role…</option>
           <option value="fm">Facility Manager</option><option value="electrician">Electrician</option><option value="plumber">Plumber</option><option value="technician">Electrician / Plumber (shared login)</option>
         </select>
-        <input type="password" name="password" required minLength={8} maxLength={72} autoComplete="new-password" placeholder="Password (min 8 chars)" className={inp} />
+        <input type="password" name="password" required minLength={10} maxLength={72} autoComplete="new-password" placeholder="Password (min 10, letters + numbers)" className={inp} />
         <div className="sm:col-span-2 flex items-center gap-3">
           <button disabled={p} className="rounded-lg bg-slate-900 px-4 py-2 text-white">Add staff</button>
           {s && "ok" in s && <span className="text-sm text-emerald-700">{s.ok}</span>}

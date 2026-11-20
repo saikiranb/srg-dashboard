@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# society data (kept locally, not in git)
+pending-works.xlsx
+scripts/data.mjs

@@ -31,7 +31,7 @@ export async function residentLogin(rawMobile: string): Promise<{ ok: true } | {
   if (!mobile) return { ok: false, error: "Enter your 10-digit mobile number" };
   await ensureTable();
   const ipKey = await clientKey("resident");
-  if (await attemptsExceeded(ipKey, 10)) return { ok: false, error: lockoutMessage };
+  if (await attemptsExceeded(ipKey, 10, "resident", 300)) return { ok: false, error: lockoutMessage };
   const rows = await sql()`SELECT 1 FROM residents WHERE mobile=${mobile} LIMIT 1`;
   if (!rows.length) {
     await recordFailure(ipKey); // slows down anyone trying numbers one by one

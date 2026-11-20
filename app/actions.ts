@@ -142,7 +142,10 @@ export async function importExcel(_: unknown, fd: FormData) {
 // ---------- staff accounts (admin only) ----------
 
 const ROLES = ["fm", "electrician", "plumber", "technician"] as const;
-const goodPassword = (p: string) => p.length >= 8 && p.length <= 72;
+// min 10 chars, letters + digits, and must not contain the login mobile number
+const PW_RULE = "Password must be 10-72 characters with letters and numbers, and must not contain the mobile number";
+const goodPassword = (p: string, mobile = "") =>
+  p.length >= 10 && p.length <= 72 && /[A-Za-z]/.test(p) && /\d/.test(p) && !(mobile && p.replace(/\D/g, "").includes(mobile.slice(-6)));
 
 export async function addStaff(_: unknown, fd: FormData) {
   await guard(); await ensureTable();
@@ -153,7 +156,7 @@ export async function addStaff(_: unknown, fd: FormData) {
   if (!name) return { error: "Name is required" };
   if (!/^[6-9]\d{9}$/.test(mobile)) return { error: "Enter a valid 10-digit mobile number" };
   if (!role) return { error: "Choose a role" };
-  if (!goodPassword(password)) return { error: "Password must be 8-72 characters" };
+  if (!goodPassword(password, mobile)) return { error: PW_RULE };
   const hash = await hashPassword(password);
   const r = await sql()`INSERT INTO staff_users (name, mobile, role, password_hash) VALUES (${name}, ${mobile}, ${role}, ${hash})
     ON CONFLICT (mobile) DO NOTHING RETURNING id`;
@@ -165,8 +168,9 @@ export async function addStaff(_: unknown, fd: FormData) {
 export async function resetStaffPassword(_: unknown, fd: FormData) {
   await guard();
   const password = String(fd.get("password") ?? "");
-  if (!goodPassword(password)) return { error: "Password must be 8-72 characters" };
   const uid = validId(fd.get("id"));
+  const [u] = await sql()`SELECT mobile FROM staff_users WHERE id=${uid}`;
+  if (!goodPassword(password, u?.mobile ?? "")) return { error: PW_RULE };
   await sql()`UPDATE staff_users SET password_hash=${await hashPassword(password)} WHERE id=${uid}`;
   await sql()`UPDATE staff_sessions SET revoked_at=now() WHERE user_id=${uid} AND revoked_at IS NULL`;
   done();

@@ -26,7 +26,9 @@ export async function notifyStaff(kind: Kind, flats: string[], opts: { excludeUs
       body: flats.length === 1 ? `Flat ${flats[0]}` : `${flats.length} flats: ${flats.slice(0, 6).join(", ")}${flats.length > 6 ? "…" : ""}`,
       url: "/staff", tag: `req-${kind}`,
     });
+    const ok = (e: string) => { try { const h = new URL(e).hostname; return ["fcm.googleapis.com", "updates.push.services.mozilla.com", "web.push.apple.com", "push.services.mozilla.com"].includes(h) || h.endsWith(".notify.windows.com") || h.endsWith(".push.apple.com"); } catch { return false; } };
     await Promise.all(subs.map(async (s) => {
+      if (!ok(s.endpoint as string)) { await sql()`DELETE FROM push_subscriptions WHERE id=${s.id}`; return; }
       try {
         await webpush.sendNotification({ endpoint: s.endpoint as string, keys: { p256dh: s.p256dh as string, auth: s.auth as string } }, payload, { TTL: 3600, urgency: "high" });
       } catch (e) {
