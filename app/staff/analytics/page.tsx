@@ -19,7 +19,7 @@ export default async function Analytics() {
   const card = (n: number, l: string) => (<div className="rounded-xl border bg-white p-4"><div className="text-2xl font-semibold">{n}</div><div className="text-sm text-slate-500">{l}</div></div>);
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 py-6">
+    <main className="mx-auto w-full min-w-0 max-w-3xl px-4 py-6">
       <SocietyHeader right={<Link href="/staff" className="underline text-slate-500">Back</Link>} />
       <h2 className="mb-4 text-center text-lg font-bold uppercase tracking-wide">Service request analytics</h2>
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">

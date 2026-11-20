@@ -15,9 +15,9 @@ const btn = "rounded-lg px-4 py-2 text-sm font-semibold text-white";
 function Row({ r, pos, mode }: { r: Req; pos?: number; mode: Mode }) {
   const canWork = mode === r.kind; // electrician/plumber looking at their own queue
   return (
-    <li className="flex items-center gap-3 rounded-xl border bg-white p-3">
+    <li className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border bg-white p-3">
       <div className="w-8 shrink-0 text-center text-sm font-semibold text-slate-400">{pos ? `#${pos}` : "✓"}</div>
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 basis-32">
         <div className="text-lg font-bold tracking-wide">{r.flat}</div>
         <div className="text-xs text-slate-500">
           Raised {r.created}
@@ -27,16 +27,18 @@ function Row({ r, pos, mode }: { r: Req; pos?: number; mode: Mode }) {
         </div>
       </div>
       <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${pill[r.status]}`}>{r.status === "Open" ? "Open" : r.status}</span>
+      <div className="flex w-full gap-2 empty:hidden sm:w-auto">
       {canWork && r.status === "Open" && (
-        <form action={attendRequest}><input type="hidden" name="id" value={r.id} /><button className={`${btn} bg-blue-600`}>Attend</button></form>
+        <form className="flex-1 sm:flex-none" action={attendRequest}><input type="hidden" name="id" value={r.id} /><button className={`${btn} w-full bg-blue-600`}>Attend</button></form>
       )}
       {canWork && r.status === "In Progress" && (
-        <form action={closeRequest}><input type="hidden" name="id" value={r.id} /><button className={`${btn} bg-emerald-600`}>Close</button></form>
+        <form className="flex-1 sm:flex-none" action={closeRequest}><input type="hidden" name="id" value={r.id} /><button className={`${btn} w-full bg-emerald-600`}>Close</button></form>
       )}
       {(mode === "fm" || (canWork && r.mine)) && r.status === "Open" && (
-        <form action={cancelRequest}><input type="hidden" name="id" value={r.id} />
-          <button className="rounded-lg border border-red-200 px-3 py-2 text-xs text-red-600" title="Cancel this request (raised by mistake)">Cancel</button></form>
+        <form className="flex-1 sm:flex-none" action={cancelRequest}><input type="hidden" name="id" value={r.id} />
+          <button className="w-full rounded-lg border border-red-200 px-3 py-2 text-xs text-red-600" title="Cancel this request (raised by mistake)">Cancel</button></form>
       )}
+      </div>
     </li>
   );
 }

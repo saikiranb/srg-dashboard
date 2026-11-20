@@ -17,7 +17,7 @@ export default async function Admin() {
   const admin = await isAdmin();
   if (!admin && (await getStaff())) redirect("/staff");
   return (
-    <main className="max-w-3xl mx-auto px-4 py-6">
+    <main className="mx-auto w-full min-w-0 max-w-3xl px-4 py-6">
       <SocietyHeader right={
         <div className="flex gap-4">
           <Link href="/" className="underline text-slate-500">View site</Link>

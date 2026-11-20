@@ -14,11 +14,11 @@ export const metadata = { title: "Staff · Sri Ram Garden", robots: { index: fal
 export default async function Staff() {
   const me = await getStaff();
   if (!me) {
-    return (<main className="mx-auto w-full max-w-3xl px-4 py-6"><SocietyHeader /><StaffLogin /></main>);
+    return (<main className="mx-auto w-full min-w-0 max-w-3xl px-4 py-6"><SocietyHeader /><StaffLogin /></main>);
   }
   const reqs = (await getQueue(me.id).catch(() => null)) ?? [];
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 py-6">
+    <main className="mx-auto w-full min-w-0 max-w-3xl px-4 py-6">
       <SocietyHeader />
       <div className="mb-5 flex items-center gap-3 text-sm">
         <div className="flex-1"><b>{me.name}</b> · {ROLE_LABEL[me.role]}</div>

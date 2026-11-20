@@ -12,14 +12,14 @@ export default async function Service({ searchParams }: { searchParams: Promise<
   const reqs = await getQueue().catch(() => null);
   const kinds: Kind[] = kind === "electrician" ? ["electrician"] : kind === "plumber" ? ["plumber"] : ["electrician", "plumber"];
   const tab = (href: string, label: string, active: boolean) => (
-    <Link href={href} className={`rounded-lg border px-4 py-1.5 text-sm font-medium ${active ? "bg-slate-900 text-white" : "bg-white"}`}>{label}</Link>
+    <Link href={href} className={`rounded-lg border px-3 py-1.5 text-sm font-medium ${active ? "bg-slate-900 text-white" : "bg-white"}`}>{label}</Link>
   );
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 py-6">
+    <main className="mx-auto w-full min-w-0 max-w-3xl px-4 py-6">
       <SocietyHeader />
       <h2 className="text-center text-lg font-bold uppercase tracking-wide">Service Requests</h2>
       <p className="mb-4 text-center text-sm text-slate-500">Live queue for electrician &amp; plumber — updates automatically</p>
-      <div className="mb-5 flex justify-center gap-2">
+      <div className="mb-5 flex flex-wrap justify-center gap-2">
         {tab("/service", "All", kinds.length === 2)}
         {tab("/service?kind=electrician", "⚡ Electrician", kind === "electrician")}
         {tab("/service?kind=plumber", "🚰 Plumber", kind === "plumber")}

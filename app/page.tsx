@@ -11,7 +11,7 @@ export default async function Home() {
   if (await getStaff()) redirect("/staff"); // staff accounts only use the requests module
   const tasks = await getTasks().catch(() => null);
   return (
-    <main className="max-w-3xl mx-auto px-4 py-6">
+    <main className="mx-auto w-full min-w-0 max-w-3xl px-4 py-6">
       <SocietyHeader />
       <h2 className="text-lg font-bold uppercase tracking-wide text-center">Pending Works</h2>
       <p className="text-sm text-slate-500 text-center mb-5">Live status of pending and completed works</p>
