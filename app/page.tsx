@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getStaff } from "@/lib/staff";
-import { getTasks } from "@/lib/db";
+import { getTasksCached as getTasks } from "@/lib/db";
 import TaskBoard from "@/components/TaskBoard";
 import SocietyHeader from "@/components/SocietyHeader";
 

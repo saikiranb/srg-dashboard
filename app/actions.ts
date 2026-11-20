@@ -1,5 +1,5 @@
 "use server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { readSheet } from "read-excel-file/node";
 import { ensureTable, sql, STATUSES, PRIORITIES, LIMITS } from "@/lib/db";
@@ -29,7 +29,7 @@ function validId(v: unknown) {
   if (!Number.isSafeInteger(n) || n <= 0) throw new Error("Invalid id");
   return n;
 }
-const done = () => { revalidatePath("/"); revalidatePath("/admin"); };
+const done = () => { updateTag("tasks"); revalidatePath("/"); revalidatePath("/admin"); };
 
 type Parsed = { title: string; description: string; category: string; assignee: string; priority: string; status: string; due: string | null };
 function parseTask(fd: FormData): Parsed | null {

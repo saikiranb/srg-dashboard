@@ -1,4 +1,5 @@
 import { neon } from "@neondatabase/serverless";
+import { unstable_cache } from "next/cache";
 
 export type Task = {
   id: number;
@@ -28,7 +29,11 @@ let ready = false;
 export async function ensureTable() {
   if (ready) return;
   const q = sql();
-  await q`CREATE TABLE IF NOT EXISTS tasks (
+  // fast path: one cheap query when the schema already exists (the normal case)
+  const [chk] = await q`SELECT count(*)::int AS n FROM pg_indexes WHERE indexname IN ('service_one_active','service_kind_status','login_attempts_key_at')`;
+  if (chk.n === 3) { ready = true; return; }
+  await q.transaction([
+  q`CREATE TABLE IF NOT EXISTS tasks (
     id SERIAL PRIMARY KEY,
     title TEXT NOT NULL CHECK (char_length(title) BETWEEN 1 AND 200),
     description TEXT NOT NULL DEFAULT '' CHECK (char_length(description) <= 2000),
@@ -38,14 +43,14 @@ export async function ensureTable() {
     status TEXT NOT NULL DEFAULT 'Pending' CHECK (status IN ('Pending','In Progress','Completed')),
     due_date DATE,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-  )`;
-  await q`CREATE TABLE IF NOT EXISTS login_attempts (
+  )`,
+  q`CREATE TABLE IF NOT EXISTS login_attempts (
     id BIGSERIAL PRIMARY KEY,
     key TEXT NOT NULL,
     at TIMESTAMPTZ NOT NULL DEFAULT now()
-  )`;
-  await q`CREATE INDEX IF NOT EXISTS login_attempts_key_at ON login_attempts (key, at)`;
-  await q`CREATE TABLE IF NOT EXISTS staff_users (
+  )`,
+  q`CREATE INDEX IF NOT EXISTS login_attempts_key_at ON login_attempts (key, at)`,
+  q`CREATE TABLE IF NOT EXISTS staff_users (
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL CHECK (char_length(name) BETWEEN 1 AND 80),
     mobile TEXT NOT NULL UNIQUE CHECK (mobile ~ '^[6-9][0-9]{9}$'),
@@ -53,8 +58,8 @@ export async function ensureTable() {
     password_hash TEXT NOT NULL,
     active BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-  )`;
-  await q`CREATE TABLE IF NOT EXISTS service_requests (
+  )`,
+  q`CREATE TABLE IF NOT EXISTS service_requests (
     id SERIAL PRIMARY KEY,
     flat TEXT NOT NULL CHECK (flat ~ '^[A-Z]-([0-9]{1,2}|G)[A-Z]$'),
     kind TEXT NOT NULL CHECK (kind IN ('electrician','plumber')),
@@ -64,9 +69,10 @@ export async function ensureTable() {
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     attended_at TIMESTAMPTZ,
     closed_at TIMESTAMPTZ
-  )`;
-  await q`CREATE UNIQUE INDEX IF NOT EXISTS service_one_active ON service_requests (flat, kind) WHERE status IN ('Open','In Progress')`;
-  await q`CREATE INDEX IF NOT EXISTS service_kind_status ON service_requests (kind, status, created_at)`;
+  )`,
+  q`CREATE UNIQUE INDEX IF NOT EXISTS service_one_active ON service_requests (flat, kind) WHERE status IN ('Open','In Progress')`,
+  q`CREATE INDEX IF NOT EXISTS service_kind_status ON service_requests (kind, status, created_at)`,
+  ]);
   ready = true;
 }
 
@@ -80,3 +86,7 @@ export async function getTasks(): Promise<Task[]> {
       due_date NULLS LAST, id`;
   return rows as Task[];
 }
+
+// Public pages read through a short cache so they don't wait on the database (Neon wakes slowly after idle).
+// Mutations call updateTag("tasks") so changes show up immediately.
+export const getTasksCached = unstable_cache(getTasks, ["tasks-v1"], { tags: ["tasks"], revalidate: 30 });

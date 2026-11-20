@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { ensureTable, sql } from "@/lib/db";
 
 export type Kind = "electrician" | "plumber";
@@ -9,19 +10,25 @@ const TZ = "Asia/Kolkata";
 export const KIND_LABEL: Record<Kind, string> = { electrician: "Electrician", plumber: "Plumber" };
 
 // Active requests (oldest first = first come, first served) + requests closed today (IST)
-export async function getQueue(meId?: number): Promise<Req[]> {
+type RawReq = Req & { created_by: number | null };
+const getQueueRaw = unstable_cache(async (): Promise<RawReq[]> => {
   await ensureTable();
   const rows = await sql()`SELECT id, flat, kind, status,
       to_char(created_at AT TIME ZONE 'Asia/Kolkata', 'DD Mon, HH12:MI AM') AS created,
       to_char(attended_at AT TIME ZONE 'Asia/Kolkata', 'HH12:MI AM') AS attended,
       to_char(closed_at AT TIME ZONE 'Asia/Kolkata', 'HH12:MI AM') AS closed,
       floor(extract(epoch from (now() - created_at)) / 60)::int AS age_min,
-      (created_by = ${meId ?? 0}) AS mine
+      created_by
     FROM service_requests
     WHERE status IN ('Open','In Progress')
        OR (status = 'Closed' AND closed_at >= (date_trunc('day', now() AT TIME ZONE 'Asia/Kolkata') AT TIME ZONE 'Asia/Kolkata'))
     ORDER BY created_at, id`;
-  return rows as Req[];
+  return rows as RawReq[];
+}, ["queue-v1"], { tags: ["queue"], revalidate: 10 });
+
+// `mine` is computed per viewer outside the shared cache; created_by never leaves the server.
+export async function getQueue(meId?: number): Promise<Req[]> {
+  return (await getQueueRaw()).map(({ created_by, ...r }) => ({ ...r, mine: meId != null && created_by === meId }));
 }
 
 export const fmtAge = (m: number) => (m < 60 ? `${m} min` : m < 1440 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${Math.floor(m / 1440)}d ${Math.floor((m % 1440) / 60)}h`);

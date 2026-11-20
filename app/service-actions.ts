@@ -1,11 +1,11 @@
 "use server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { ensureTable, sql } from "@/lib/db";
 import { parseFlats } from "@/lib/flats";
 import { getStaff, staffLogin, staffLogout } from "@/lib/staff";
 
-const done = () => { revalidatePath("/service"); revalidatePath("/staff"); revalidatePath("/staff/analytics"); };
+const done = () => { updateTag("queue"); revalidatePath("/service"); revalidatePath("/staff"); revalidatePath("/staff/analytics"); };
 const id = (fd: FormData) => {
   const n = Number(fd.get("id"));
   if (!Number.isSafeInteger(n) || n <= 0) throw new Error("Invalid id");
