@@ -30,7 +30,7 @@ export default function RaiseRequest() {
             <textarea name="flats" value={text} onChange={(e) => setText(e.target.value)} rows={3} maxLength={600} autoFocus
               placeholder="e.g. b4g a6i bgg   (B-4G, A-6I, B-Ground-G)" className="mt-1 w-full rounded-lg border px-3 py-2 text-base uppercase" />
           </label>
-          <p className="text-xs text-slate-500">Format: block + floor + flat letter. <b>b4g</b> = B block 4G · <b>a6i</b> = A block 6I · <b>bgg</b> = B block ground floor GG. Separate with space, comma or new line.</p>
+          <p className="text-xs text-slate-500">Block + floor + flat letter, any style: <b>b4g</b>, <b>B 4 G</b>, <b>a6 i</b>, <b>A-6-I</b> · <b>bgg</b> = B block ground floor GG. Separate flats with a comma, space or new line.</p>
           {(parsed.flats.length > 0 || parsed.invalid.length > 0) && (
             <div className="flex flex-wrap gap-2" aria-live="polite">
               {parsed.flats.map((f) => <span key={f.code} className="rounded-full bg-emerald-100 px-3 py-1 text-sm font-semibold text-emerald-800">{f.code}</span>)}
