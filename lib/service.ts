@@ -94,3 +94,13 @@ export async function getActiveSessions(): Promise<ActiveSession[]> {
     WHERE s.revoked_at IS NULL AND s.created_at > now() - interval '12 hours' AND s.last_seen > now() - interval '15 minutes'
     ORDER BY u.role, s.created_at`) as ActiveSession[];
 }
+
+// Electrician / plumber busy with society common work (main pipeline, DG, transformer…), set by the FM.
+export type Engagement = { kind: Kind; note: string; since: string; until: string | null };
+export const getEngagements = unstable_cache(async (): Promise<Engagement[]> => {
+  await ensureTable();
+  return (await sql()`SELECT kind, note,
+      to_char(started_at AT TIME ZONE 'Asia/Kolkata', 'HH12:MI AM') AS since,
+      to_char(expected_until AT TIME ZONE 'Asia/Kolkata', 'HH12:MI AM') AS until
+    FROM common_work WHERE ended_at IS NULL ORDER BY kind`) as Engagement[];
+}, ["engagements-v1"], { tags: ["queue"], revalidate: 15 });

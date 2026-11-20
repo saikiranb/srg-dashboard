@@ -1,5 +1,6 @@
 import { getResident } from "@/lib/resident";
-import { getQueue, fmtAge, KIND_LABEL, type Req } from "@/lib/service";
+import { getQueue, getEngagements, fmtAge, KIND_LABEL, type Req } from "@/lib/service";
+import BusyBanner from "@/components/BusyBanner";
 import { residentLogoutAction, cancelResidentRequest } from "@/app/resident-actions";
 import SocietyHeader from "@/components/SocietyHeader";
 import ResidentLogin from "@/components/ResidentLogin";
@@ -15,7 +16,7 @@ export default async function ResidentPage() {
   const me = await getResident();
   if (!me) return (<main className="mx-auto w-full min-w-0 max-w-3xl px-4 py-6"><SocietyHeader /><ResidentLogin /></main>);
 
-  const all = (await getQueue({ mobile: me.mobile }).catch(() => null)) ?? [];
+  const [all, busy] = await Promise.all([getQueue({ mobile: me.mobile }).catch(() => [] as Req[]), getEngagements().catch(() => [])]);
   const mine = all.filter((r) => r.mine);
   const position = (r: Req) => all.filter((x) => x.kind === r.kind && (x.status === "Open" || x.status === "Acknowledged")).findIndex((x) => x.id === r.id) + 1;
   return (
@@ -25,6 +26,7 @@ export default async function ResidentPage() {
         <div className="flex-1">Hello, <b>{me.name}</b> · {me.flats.join(", ")}</div>
         <form action={residentLogoutAction}><button className="text-slate-500 underline">Not you?</button></form>
       </div>
+      <BusyBanner items={busy} />
       <ResidentRaise flats={me.flats} />
       <h2 className="mb-2 mt-8 font-bold">Your requests today</h2>
       {mine.length === 0 && <p className="rounded-xl border bg-white p-4 text-center text-sm text-slate-500">No requests yet.</p>}

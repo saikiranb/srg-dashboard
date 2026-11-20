@@ -30,8 +30,8 @@ export async function ensureTable() {
   if (ready) return;
   const q = sql();
   // fast path: one cheap query when the schema already exists (the normal case)
-  const [chk] = await q`SELECT count(*)::int AS n FROM pg_indexes WHERE indexname IN ('service_active_v2','service_kind_status','login_attempts_key_at','staff_sessions_user','residents_mobile','push_user')`;
-  if (chk.n === 6) { ready = true; return; }
+  const [chk] = await q`SELECT count(*)::int AS n FROM pg_indexes WHERE indexname IN ('service_active_v2','service_kind_status','login_attempts_key_at','staff_sessions_user','residents_mobile','push_user','common_work_active')`;
+  if (chk.n === 7) { ready = true; return; }
   await q.transaction([
   q`CREATE TABLE IF NOT EXISTS tasks (
     id SERIAL PRIMARY KEY,
@@ -109,6 +109,16 @@ export async function ensureTable() {
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
   )`,
   q`CREATE INDEX IF NOT EXISTS push_user ON push_subscriptions (user_id)`,
+  q`CREATE TABLE IF NOT EXISTS common_work (
+    id SERIAL PRIMARY KEY,
+    kind TEXT NOT NULL CHECK (kind IN ('electrician','plumber')),
+    note TEXT NOT NULL CHECK (char_length(note) BETWEEN 1 AND 120),
+    expected_until TIMESTAMPTZ,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    started_by INT REFERENCES staff_users(id),
+    ended_at TIMESTAMPTZ
+  )`,
+  q`CREATE UNIQUE INDEX IF NOT EXISTS common_work_active ON common_work (kind) WHERE ended_at IS NULL`,
   ]);
   ready = true;
 }

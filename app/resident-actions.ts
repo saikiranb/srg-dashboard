@@ -44,7 +44,9 @@ export async function raiseResidentRequest(_: unknown, fd: FormData) {
   if (!ins.length) return { ok: `A ${kind} request for ${flat} is already in the queue — no need to raise it again.` };
   after(() => notifyStaff(kind, [flat])); // sound/phone alert to FM + the trade's staff
   const label = kind === "electrician" ? "Electrician" : "Plumber";
-  return { ok: `✅ ${label} request raised for ${flat}. You can track it below.` };
+  const [busy] = await q`SELECT note FROM common_work WHERE kind=${kind} AND ended_at IS NULL`;
+  const extra = busy ? ` Note: the ${kind} is currently on society work (${busy.note}), so it may take a little longer.` : "";
+  return { ok: `✅ ${label} request raised for ${flat}. You can track it below.${extra}` };
 }
 
 export async function cancelResidentRequest(fd: FormData) {

@@ -1,4 +1,6 @@
-import { getQueue } from "@/lib/service";
+import { getQueue, getEngagements } from "@/lib/service";
+import BusyBanner from "@/components/BusyBanner";
+import CommonWorkPanel from "@/components/CommonWorkPanel";
 import { getStaff, kindsFor, ROLE_LABEL } from "@/lib/staff";
 import { staffLogoutAction } from "@/app/service-actions";
 import SocietyHeader from "@/components/SocietyHeader";
@@ -17,7 +19,10 @@ export default async function Staff() {
   if (!me) {
     return (<main className="mx-auto w-full min-w-0 max-w-3xl px-4 py-6"><SocietyHeader /><StaffLogin /></main>);
   }
-  const reqs = (await getQueue({ staffId: me.id, showWho: true }).catch(() => null)) ?? [];
+  const [reqs, busy] = await Promise.all([
+    getQueue({ staffId: me.id, showWho: true }).catch(() => []),
+    getEngagements().catch(() => []),
+  ]);
   return (
     <main className="mx-auto w-full min-w-0 max-w-3xl px-4 py-6">
       <SocietyHeader />
@@ -31,12 +36,14 @@ export default async function Staff() {
         count={reqs.filter((r) => r.status === "Open" && kindsFor(me.role).includes(r.kind)).length} />
       {me.role === "fm" ? (
         <>
+          <CommonWorkPanel engagements={busy} />
           <RaiseRequest allowed={["electrician", "plumber"]} />
           <QueueSection kind="electrician" reqs={reqs} mode="fm" />
           <QueueSection kind="plumber" reqs={reqs} mode="fm" />
         </>
       ) : (
         <>
+          <BusyBanner items={busy.filter((e) => kindsFor(me.role).includes(e.kind))} />
           <RaiseRequest allowed={kindsFor(me.role)} />
           {kindsFor(me.role).map((k) => <QueueSection key={k} kind={k} reqs={reqs} mode={me.role as "electrician" | "plumber" | "technician"} />)}
         </>
