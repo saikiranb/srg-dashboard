@@ -3,7 +3,7 @@ import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { ensureTable, sql } from "@/lib/db";
 import { parseFlats } from "@/lib/flats";
-import { getStaff, staffLogin, staffLogout } from "@/lib/staff";
+import { getStaff, kindsFor, staffLogin, staffLogout } from "@/lib/staff";
 
 const done = () => { updateTag("queue"); revalidatePath("/service"); revalidatePath("/staff"); revalidatePath("/staff/analytics"); };
 const id = (fd: FormData) => {
@@ -27,8 +27,9 @@ export async function staffLogoutAction() {
 export async function raiseRequests(_: unknown, fd: FormData) {
   const me = await getStaff();
   if (!me) return { error: "Please sign in again" };
-  // FM can raise for either trade; electrician/plumber can raise only for their own trade (e.g. after the FM's hours)
-  const kind = me.role === "fm" ? fd.get("kind") : me.role;
+  // FM and the shared Electrician/Plumber login can raise for either trade; a single-trade login only for its own
+  const allowed = kindsFor(me.role);
+  const kind = allowed.length === 1 ? allowed[0] : fd.get("kind");
   if (kind !== "electrician" && kind !== "plumber") return { error: "Choose Electrician or Plumber" };
   const text = String(fd.get("flats") ?? "").slice(0, 600);
   const { flats, invalid, tooMany } = parseFlats(text);
@@ -53,7 +54,7 @@ export async function attendRequest(fd: FormData) {
   const me = await getStaff();
   if (!me || me.role === "fm") throw new Error("Unauthorized");
   await sql()`UPDATE service_requests SET status='In Progress', attended_by=${me.id}, attended_at=now()
-    WHERE id=${id(fd)} AND kind=${me.role} AND status='Open'`; // atomic: two people can't take the same job
+    WHERE id=${id(fd)} AND kind = ANY(${kindsFor(me.role)}) AND status='Open'`; // atomic: two people can't take the same job
   done();
 }
 
@@ -61,7 +62,7 @@ export async function closeRequest(fd: FormData) {
   const me = await getStaff();
   if (!me || me.role === "fm") throw new Error("Unauthorized");
   await sql()`UPDATE service_requests SET status='Closed', closed_at=now()
-    WHERE id=${id(fd)} AND kind=${me.role} AND status='In Progress'`;
+    WHERE id=${id(fd)} AND kind = ANY(${kindsFor(me.role)}) AND status='In Progress'`;
   done();
 }
 
@@ -72,6 +73,6 @@ export async function cancelRequest(fd: FormData) {
   if (me.role === "fm")
     await sql()`UPDATE service_requests SET status='Cancelled' WHERE id=${id(fd)} AND status='Open'`;
   else
-    await sql()`UPDATE service_requests SET status='Cancelled' WHERE id=${id(fd)} AND status='Open' AND created_by=${me.id} AND kind=${me.role}`;
+    await sql()`UPDATE service_requests SET status='Cancelled' WHERE id=${id(fd)} AND status='Open' AND created_by=${me.id} AND kind = ANY(${kindsFor(me.role)})`;
   done();
 }

@@ -177,7 +177,7 @@ export async function importExcel(_: unknown, fd: FormData) {
 
 // ---------- staff accounts (admin only) ----------
 
-const ROLES = ["fm", "electrician", "plumber"] as const;
+const ROLES = ["fm", "electrician", "plumber", "technician"] as const;
 const goodPassword = (p: string) => p.length >= 8 && p.length <= 72;
 
 export async function addStaff(_: unknown, fd: FormData) {
@@ -202,13 +202,26 @@ export async function resetStaffPassword(_: unknown, fd: FormData) {
   await guard();
   const password = String(fd.get("password") ?? "");
   if (!goodPassword(password)) return { error: "Password must be 8-72 characters" };
-  await sql()`UPDATE staff_users SET password_hash=${await hashPassword(password)} WHERE id=${validId(fd.get("id"))}`;
+  const uid = validId(fd.get("id"));
+  await sql()`UPDATE staff_users SET password_hash=${await hashPassword(password)} WHERE id=${uid}`;
+  await sql()`UPDATE staff_sessions SET revoked_at=now() WHERE user_id=${uid} AND revoked_at IS NULL`;
   done();
   return { ok: "Password updated (user was signed out)" };
 }
 
 export async function setStaffActive(fd: FormData) {
   await guard();
-  await sql()`UPDATE staff_users SET active=${fd.get("active") === "1"} WHERE id=${validId(fd.get("id"))}`;
+  const uid = validId(fd.get("id"));
+  const active = fd.get("active") === "1";
+  await sql()`UPDATE staff_users SET active=${active} WHERE id=${uid}`;
+  if (!active) await sql()`UPDATE staff_sessions SET revoked_at=now() WHERE user_id=${uid} AND revoked_at IS NULL`;
+  done();
+}
+
+export async function revokeSession(fd: FormData) {
+  await guard();
+  const sid = String(fd.get("id") ?? "");
+  if (!/^[0-9a-f-]{36}$/i.test(sid)) throw new Error("Invalid id");
+  await sql()`UPDATE staff_sessions SET revoked_at=now() WHERE id=${sid} AND revoked_at IS NULL`;
   done();
 }

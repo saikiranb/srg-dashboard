@@ -71,3 +71,15 @@ export async function getStaffList(): Promise<StaffRow[]> {
   return (await sql()`SELECT id, name, mobile, role, active FROM staff_users ORDER BY role, name`) as StaffRow[];
 }
 export { TZ };
+
+export type ActiveSession = { id: string; name: string; mobile: string; role: string; device: string; signed_in: string; idle_min: number };
+// "Logged in now" = not signed out, token not expired (12h) and seen in the last 15 minutes
+export async function getActiveSessions(): Promise<ActiveSession[]> {
+  await ensureTable();
+  return (await sql()`SELECT s.id::text AS id, u.name, u.mobile, u.role, s.device,
+      to_char(s.created_at AT TIME ZONE 'Asia/Kolkata', 'DD Mon, HH12:MI AM') AS signed_in,
+      floor(extract(epoch from (now() - s.last_seen)) / 60)::int AS idle_min
+    FROM staff_sessions s JOIN staff_users u ON u.id = s.user_id
+    WHERE s.revoked_at IS NULL AND s.created_at > now() - interval '12 hours' AND s.last_seen > now() - interval '15 minutes'
+    ORDER BY u.role, s.created_at`) as ActiveSession[];
+}

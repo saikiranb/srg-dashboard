@@ -1,5 +1,5 @@
 import { getQueue } from "@/lib/service";
-import { getStaff, ROLE_LABEL } from "@/lib/staff";
+import { getStaff, kindsFor, ROLE_LABEL } from "@/lib/staff";
 import { staffLogoutAction } from "@/app/service-actions";
 import SocietyHeader from "@/components/SocietyHeader";
 import StaffLogin from "@/components/StaffLogin";
@@ -33,8 +33,8 @@ export default async function Staff() {
         </>
       ) : (
         <>
-          <RaiseRequest allowed={[me.role]} />
-          <QueueSection kind={me.role} reqs={reqs} mode={me.role} />
+          <RaiseRequest allowed={kindsFor(me.role)} />
+          {kindsFor(me.role).map((k) => <QueueSection key={k} kind={k} reqs={reqs} mode={me.role as "electrician" | "plumber" | "technician"} />)}
         </>
       )}
       <AutoRefresh seconds={15} />

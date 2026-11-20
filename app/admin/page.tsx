@@ -2,7 +2,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getStaff } from "@/lib/staff";
 import { getTasks } from "@/lib/db";
-import { getStaffList } from "@/lib/service";
+import { getStaffList, getActiveSessions } from "@/lib/service";
+import AdminSessions from "@/components/AdminSessions";
+import AutoRefresh from "@/components/AutoRefresh";
 import AdminStaff from "@/components/AdminStaff";
 import { isAdmin } from "@/lib/auth";
 import { logoutAction } from "@/app/actions";
@@ -27,7 +29,9 @@ export default async function Admin() {
       <h2 className="text-lg font-bold uppercase tracking-wide text-center mb-5">Admin</h2>
       {admin ? (
         <div className="space-y-8">
+          <AdminSessions sessions={await getActiveSessions()} />
           <AdminStaff staff={await getStaffList()} />
+          <AutoRefresh seconds={30} />
           <AdminTasks tasks={await getTasks()} />
         </div>
       ) : <LoginForm />}

@@ -2,7 +2,7 @@ import type { Kind, Req } from "@/lib/service";
 import { KIND_LABEL, fmtAge } from "@/lib/service";
 import { attendRequest, cancelRequest, closeRequest } from "@/app/service-actions";
 
-export type Mode = "public" | "fm" | Kind; // who is looking
+export type Mode = "public" | "fm" | "technician" | Kind; // who is looking
 
 const ICON: Record<Kind, string> = { electrician: "⚡", plumber: "🚰" };
 const pill: Record<string, string> = {
@@ -13,7 +13,7 @@ const pill: Record<string, string> = {
 const btn = "rounded-lg px-4 py-2 text-sm font-semibold text-white";
 
 function Row({ r, pos, mode }: { r: Req; pos?: number; mode: Mode }) {
-  const canWork = mode === r.kind; // electrician/plumber looking at their own queue
+  const canWork = mode === r.kind || mode === "technician"; // electrician/plumber looking at their own queue
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border bg-white p-3">
       <div className="w-8 shrink-0 text-center text-sm font-semibold text-slate-400">{pos ? `#${pos}` : "✓"}</div>

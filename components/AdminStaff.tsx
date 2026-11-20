@@ -4,7 +4,7 @@ import { addStaff, resetStaffPassword, setStaffActive } from "@/app/actions";
 import type { StaffRow } from "@/lib/service";
 
 const inp = "rounded-lg border px-3 py-2 bg-white w-full";
-const ROLE = { fm: "Facility Manager", electrician: "Electrician", plumber: "Plumber" } as Record<string, string>;
+const ROLE = { fm: "Facility Manager", electrician: "Electrician", plumber: "Plumber", technician: "Electrician / Plumber (shared)" } as Record<string, string>;
 
 function Reset({ id }: { id: number }) {
   const [s, a, p] = useActionState(resetStaffPassword, null);
@@ -30,7 +30,7 @@ export default function AdminStaff({ staff }: { staff: StaffRow[] }) {
         <input name="mobile" required inputMode="numeric" maxLength={14} placeholder="Mobile number (username)" className={inp} />
         <select name="role" required defaultValue="" className={inp}>
           <option value="" disabled>Role…</option>
-          <option value="fm">Facility Manager</option><option value="electrician">Electrician</option><option value="plumber">Plumber</option>
+          <option value="fm">Facility Manager</option><option value="electrician">Electrician</option><option value="plumber">Plumber</option><option value="technician">Electrician / Plumber (shared login)</option>
         </select>
         <input type="password" name="password" required minLength={8} maxLength={72} autoComplete="new-password" placeholder="Password (min 8 chars)" className={inp} />
         <div className="sm:col-span-2 flex items-center gap-3">
