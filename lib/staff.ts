@@ -49,7 +49,8 @@ export async function staffLogin(mobile: string, password: string): Promise<{ ok
 }
 
 export async function staffLogout() {
-  (await cookies()).delete(COOKIE);
+  // __Host- cookies can only be overwritten by a Set-Cookie that is also Secure + Path=/ ; a bare delete() is ignored by browsers
+  (await cookies()).set(COOKIE, "", { httpOnly: true, secure: PROD, sameSite: "strict", path: "/", maxAge: 0, expires: new Date(0) });
 }
 
 // Re-validated against the DB on every call: deactivated users / reset passwords lose access immediately.

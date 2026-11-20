@@ -82,7 +82,8 @@ export async function login(password: string): Promise<LoginResult> {
 }
 
 export async function logout() {
-  (await cookies()).delete(COOKIE);
+  // __Host- cookies can only be overwritten by a Set-Cookie that is also Secure + Path=/ ; a bare delete() is ignored by browsers
+  (await cookies()).set(COOKIE, "", { httpOnly: true, secure: PROD, sameSite: "strict", path: "/", maxAge: 0, expires: new Date(0) });
 }
 
 export async function isAdmin() {
