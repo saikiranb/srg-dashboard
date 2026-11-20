@@ -1,5 +1,7 @@
 "use server";
+import { after } from "next/server";
 import { revalidatePath, updateTag } from "next/cache";
+import { notifyStaff } from "@/lib/push";
 import { redirect } from "next/navigation";
 import { ensureTable, sql } from "@/lib/db";
 import { parseFlats } from "@/lib/flats";
@@ -45,6 +47,7 @@ export async function raiseRequests(_: unknown, fd: FormData) {
   const added = res.flat().map((r) => r.flat as string);
   const dup = flats.map((f) => f.code).filter((c) => !added.includes(c));
   done();
+  if (added.length) after(() => notifyStaff(kind, added, { excludeUserId: me.id }));
   const msg = added.length ? `Added to ${kind} queue: ${added.join(", ")}.` : "";
   const dmsg = dup.length ? ` Already in queue: ${dup.join(", ")}.` : "";
   return { ok: (msg + dmsg).trim() };

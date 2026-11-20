@@ -4,13 +4,13 @@ import { ensureTable, sql } from "@/lib/db";
 export type Kind = "electrician" | "plumber";
 export type Req = {
   id: number; flat: string; kind: Kind; status: "Open" | "In Progress" | "Closed";
-  created: string; attended: string | null; closed: string | null; age_min: number; mine: boolean;
+  created: string; attended: string | null; closed: string | null; age_min: number; mine: boolean; who: string | null; mobile: string | null; source: string;
 };
 const TZ = "Asia/Kolkata";
 export const KIND_LABEL: Record<Kind, string> = { electrician: "Electrician", plumber: "Plumber" };
 
 // Active requests (oldest first = first come, first served) + requests closed today (IST)
-type RawReq = Req & { created_by: number | null };
+type RawReq = Omit<Req, "mine" | "who" | "mobile"> & { created_by: number | null; raised_by_name: string | null; raised_by_mobile: string | null };
 const getQueueRaw = unstable_cache(async (): Promise<RawReq[]> => {
   await ensureTable();
   const rows = await sql()`SELECT id, flat, kind, status,
@@ -18,7 +18,7 @@ const getQueueRaw = unstable_cache(async (): Promise<RawReq[]> => {
       to_char(attended_at AT TIME ZONE 'Asia/Kolkata', 'HH12:MI AM') AS attended,
       to_char(closed_at AT TIME ZONE 'Asia/Kolkata', 'HH12:MI AM') AS closed,
       floor(extract(epoch from (now() - created_at)) / 60)::int AS age_min,
-      created_by
+      created_by, raised_by_name, raised_by_mobile, source
     FROM service_requests
     WHERE status IN ('Open','In Progress')
        OR (status = 'Closed' AND closed_at >= (date_trunc('day', now() AT TIME ZONE 'Asia/Kolkata') AT TIME ZONE 'Asia/Kolkata'))
@@ -26,9 +26,17 @@ const getQueueRaw = unstable_cache(async (): Promise<RawReq[]> => {
   return rows as RawReq[];
 }, ["queue-v1"], { tags: ["queue"], revalidate: 10 });
 
-// `mine` is computed per viewer outside the shared cache; created_by never leaves the server.
-export async function getQueue(meId?: number): Promise<Req[]> {
-  return (await getQueueRaw()).map(({ created_by, ...r }) => ({ ...r, mine: meId != null && created_by === meId }));
+// Personal fields are added per viewer outside the shared cache and never reach the public page:
+//  - `mine`: this staff member / resident raised it
+//  - `who`/`mobile`: name + number of the resident who raised it (staff viewers only)
+export type Viewer = { staffId?: number; mobile?: string; showWho?: boolean };
+export async function getQueue(v: Viewer = {}): Promise<Req[]> {
+  return (await getQueueRaw()).map(({ created_by, raised_by_name, raised_by_mobile, ...r }) => ({
+    ...r,
+    mine: (v.staffId != null && created_by === v.staffId) || (v.mobile != null && raised_by_mobile === v.mobile),
+    who: v.showWho ? raised_by_name : null,
+    mobile: v.showWho ? raised_by_mobile : null,
+  }));
 }
 
 export const fmtAge = (m: number) => (m < 60 ? `${m} min` : m < 1440 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${Math.floor(m / 1440)}d ${Math.floor((m % 1440) / 60)}h`);

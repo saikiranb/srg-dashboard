@@ -30,8 +30,8 @@ export async function ensureTable() {
   if (ready) return;
   const q = sql();
   // fast path: one cheap query when the schema already exists (the normal case)
-  const [chk] = await q`SELECT count(*)::int AS n FROM pg_indexes WHERE indexname IN ('service_one_active','service_kind_status','login_attempts_key_at','staff_sessions_user')`;
-  if (chk.n === 4) { ready = true; return; }
+  const [chk] = await q`SELECT count(*)::int AS n FROM pg_indexes WHERE indexname IN ('service_one_active','service_kind_status','login_attempts_key_at','staff_sessions_user','residents_mobile','push_user')`;
+  if (chk.n === 6) { ready = true; return; }
   await q.transaction([
   q`CREATE TABLE IF NOT EXISTS tasks (
     id SERIAL PRIMARY KEY,
@@ -83,6 +83,27 @@ export async function ensureTable() {
     revoked_at TIMESTAMPTZ
   )`,
   q`CREATE INDEX IF NOT EXISTS staff_sessions_user ON staff_sessions (user_id, revoked_at)`,
+  q`CREATE TABLE IF NOT EXISTS residents (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL CHECK (char_length(name) BETWEEN 1 AND 80),
+    mobile TEXT NOT NULL CHECK (mobile ~ '^[6-9][0-9]{9}$'),
+    flat TEXT NOT NULL CHECK (flat ~ '^[A-Z]-([0-9]{1,2}|G)[A-Z]$'),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (mobile, flat)
+  )`,
+  q`CREATE INDEX IF NOT EXISTS residents_mobile ON residents (mobile)`,
+  q`ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS raised_by_name TEXT`,
+  q`ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS raised_by_mobile TEXT`,
+  q`ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'staff'`,
+  q`CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL REFERENCES staff_users(id) ON DELETE CASCADE,
+    endpoint TEXT NOT NULL UNIQUE CHECK (char_length(endpoint) <= 1000),
+    p256dh TEXT NOT NULL,
+    auth TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`,
+  q`CREATE INDEX IF NOT EXISTS push_user ON push_subscriptions (user_id)`,
   ]);
   ready = true;
 }

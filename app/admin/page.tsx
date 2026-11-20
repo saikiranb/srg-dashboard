@@ -22,6 +22,7 @@ export default async function Admin() {
     <main className="mx-auto w-full min-w-0 max-w-3xl px-4 py-6">
       <SocietyHeader right={
         <div className="flex gap-4">
+          <Link href="/staff/residents" className="underline text-slate-500">Residents</Link>
           <Link href="/" className="underline text-slate-500">View site</Link>
           {admin && <form action={logoutAction}><button className="underline text-slate-500">Log out</button></form>}
         </div>

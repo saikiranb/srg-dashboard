@@ -1,7 +1,7 @@
 "use server";
 import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
-import { readSheet } from "read-excel-file/node";
+import { readXlsx, cell } from "@/lib/xlsx";
 import { ensureTable, sql, STATUSES, PRIORITIES, LIMITS } from "@/lib/db";
 import { isAdmin, login, logout } from "@/lib/auth";
 import { hashPassword } from "@/lib/password";
@@ -89,36 +89,9 @@ export async function deleteTask(fd: FormData) {
   done();
 }
 
-// ---------- Excel import (hardened) ----------
-const MAX_FILE = 1_000_000;        // 1 MB upload
-const MAX_UNZIPPED = 20_000_000;   // zip-bomb guard
+// ---------- Excel import (hardened, see lib/xlsx.ts) ----------
 const MAX_ROWS = 500;
 
-// Sum declared uncompressed sizes from the zip central directory before parsing.
-function zipLooksSafe(b: Buffer) {
-  if (b.length < 22 || b.readUInt32LE(0) !== 0x04034b50) return false;
-  let eocd = -1;
-  for (let i = b.length - 22; i >= Math.max(0, b.length - 65557); i--)
-    if (b.readUInt32LE(i) === 0x06054b50) { eocd = i; break; }
-  if (eocd < 0) return false;
-  const count = b.readUInt16LE(eocd + 10);
-  let p = b.readUInt32LE(eocd + 16);
-  if (count > 1000) return false;
-  let total = 0;
-  for (let i = 0; i < count; i++) {
-    if (p + 46 > b.length || b.readUInt32LE(p) !== 0x02014b50) return false;
-    total += b.readUInt32LE(p + 24);
-    p += 46 + b.readUInt16LE(p + 28) + b.readUInt16LE(p + 30) + b.readUInt16LE(p + 32);
-    if (total > MAX_UNZIPPED) return false;
-  }
-  return true;
-}
-
-function cell(v: unknown, max: number): string {
-  if (v instanceof Date) return isNaN(+v) ? "" : v.toISOString().slice(0, 10);
-  if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") return clean(v, max);
-  return "";
-}
 const STATUS_ALIASES: Record<string, string> = {
   open: "Pending", todo: "Pending", "not started": "Pending", pending: "Pending",
   ongoing: "In Progress", wip: "In Progress", "in-progress": "In Progress", "working progress": "In Progress",
@@ -127,18 +100,9 @@ const STATUS_ALIASES: Record<string, string> = {
 
 export async function importExcel(_: unknown, fd: FormData) {
   await guard(); await ensureTable();
-  const file = fd.get("file");
-  if (!(file instanceof File) || !file.size) return { error: "Choose an .xlsx file" };
-  if (!file.name.toLowerCase().endsWith(".xlsx")) return { error: "Only .xlsx files are accepted" };
-  if (file.size > MAX_FILE) return { error: "File too large (max 1 MB)" };
-
-  const buf = Buffer.from(await file.arrayBuffer());
-  if (!zipLooksSafe(buf)) return { error: "Not a valid .xlsx file" };
-
-  let data: unknown[][];
-  try { data = (await readSheet(buf)) as unknown[][]; } catch { return { error: "Could not read the spreadsheet" }; }
-  if (data.length < 2) return { error: "No data rows found" };
-  if (data.length - 1 > MAX_ROWS) return { error: `Too many rows (max ${MAX_ROWS})` };
+  const r = await readXlsx(fd.get("file"), MAX_ROWS);
+  if ("error" in r) return { error: r.error };
+  const data = r.data;
 
   // index-based column lookup (no object keys from user data -> no prototype pollution)
   const header = (data[0] ?? []).map((h) => cell(h, 60).toLowerCase());

@@ -25,6 +25,9 @@ function Row({ r, pos, mode }: { r: Req; pos?: number; mode: Mode }) {
           {r.status === "In Progress" && r.attended && ` · attended ${r.attended}`}
           {r.status === "Closed" && r.closed && ` · closed ${r.closed}`}
         </div>
+        {r.who && (
+          <div className="text-xs text-slate-600">🏠 {r.who}{r.mobile && <> · <a href={`tel:${r.mobile}`} className="underline">{r.mobile}</a></>}</div>
+        )}
       </div>
       <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${pill[r.status]}`}>{r.status === "Open" ? "Open" : r.status}</span>
       <div className="flex w-full gap-2 empty:hidden sm:w-auto">

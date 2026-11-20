@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 const publicTabs = [
   { href: "/", label: "Pending Works" },
   { href: "/service", label: "Service Requests" },
+  { href: "/resident", label: "Raise Request" },
   { href: "/staff", label: "Staff Login" },
 ];
 // signed-in FM / electrician / plumber only get the requests module
@@ -17,7 +18,7 @@ export default function NavTabs({ staff = false }: { staff?: boolean }) {
   const path = usePathname();
   const tabs = staff ? staffTabs : publicTabs;
   return (
-    <nav className={`mt-3 grid gap-2 text-xs sm:text-sm ${tabs.length === 3 ? "grid-cols-3" : "grid-cols-2"}`} aria-label="Main">
+    <nav className={`mt-3 grid gap-2 text-xs sm:text-sm ${tabs.length === 4 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-2"}`} aria-label="Main">
       {tabs.map((t) => {
         const active = t.href === "/" ? path === "/" : t.href === "/staff" ? path.startsWith("/staff") : path.startsWith(t.href);
         return (
