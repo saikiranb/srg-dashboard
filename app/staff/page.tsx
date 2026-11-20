@@ -16,7 +16,7 @@ export default async function Staff() {
   if (!me) {
     return (<main className="mx-auto w-full max-w-3xl px-4 py-6"><SocietyHeader /><StaffLogin /></main>);
   }
-  const reqs = (await getQueue().catch(() => null)) ?? [];
+  const reqs = (await getQueue(me.id).catch(() => null)) ?? [];
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-6">
       <SocietyHeader />
@@ -27,12 +27,15 @@ export default async function Staff() {
       </div>
       {me.role === "fm" ? (
         <>
-          <RaiseRequest />
+          <RaiseRequest allowed={["electrician", "plumber"]} />
           <QueueSection kind="electrician" reqs={reqs} mode="fm" />
           <QueueSection kind="plumber" reqs={reqs} mode="fm" />
         </>
       ) : (
-        <QueueSection kind={me.role} reqs={reqs} mode={me.role} />
+        <>
+          <RaiseRequest allowed={[me.role]} />
+          <QueueSection kind={me.role} reqs={reqs} mode={me.role} />
+        </>
       )}
       <AutoRefresh seconds={15} />
     </main>

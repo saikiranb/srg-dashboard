@@ -26,8 +26,9 @@ export async function staffLogoutAction() {
 // FM raises requests: "b4g a6i" -> one queue entry per flat
 export async function raiseRequests(_: unknown, fd: FormData) {
   const me = await getStaff();
-  if (me?.role !== "fm") return { error: "Only the Facility Manager can raise requests" };
-  const kind = fd.get("kind");
+  if (!me) return { error: "Please sign in again" };
+  // FM can raise for either trade; electrician/plumber can raise only for their own trade (e.g. after the FM's hours)
+  const kind = me.role === "fm" ? fd.get("kind") : me.role;
   if (kind !== "electrician" && kind !== "plumber") return { error: "Choose Electrician or Plumber" };
   const text = String(fd.get("flats") ?? "").slice(0, 600);
   const { flats, invalid, tooMany } = parseFlats(text);
@@ -66,7 +67,11 @@ export async function closeRequest(fd: FormData) {
 
 export async function cancelRequest(fd: FormData) {
   const me = await getStaff();
-  if (me?.role !== "fm") throw new Error("Unauthorized");
-  await sql()`UPDATE service_requests SET status='Cancelled' WHERE id=${id(fd)} AND status='Open'`;
+  if (!me) throw new Error("Unauthorized");
+  // FM can cancel any open request; electrician/plumber only the open requests they raised themselves
+  if (me.role === "fm")
+    await sql()`UPDATE service_requests SET status='Cancelled' WHERE id=${id(fd)} AND status='Open'`;
+  else
+    await sql()`UPDATE service_requests SET status='Cancelled' WHERE id=${id(fd)} AND status='Open' AND created_by=${me.id} AND kind=${me.role}`;
   done();
 }

@@ -33,7 +33,7 @@ function Row({ r, pos, mode }: { r: Req; pos?: number; mode: Mode }) {
       {canWork && r.status === "In Progress" && (
         <form action={closeRequest}><input type="hidden" name="id" value={r.id} /><button className={`${btn} bg-emerald-600`}>Close</button></form>
       )}
-      {mode === "fm" && r.status === "Open" && (
+      {(mode === "fm" || (canWork && r.mine)) && r.status === "Open" && (
         <form action={cancelRequest}><input type="hidden" name="id" value={r.id} />
           <button className="rounded-lg border border-red-200 px-3 py-2 text-xs text-red-600" title="Cancel this request (raised by mistake)">Cancel</button></form>
       )}

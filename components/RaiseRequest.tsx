@@ -5,8 +5,8 @@ import { parseFlats } from "@/lib/flats";
 
 type Kind = "electrician" | "plumber";
 
-export default function RaiseRequest() {
-  const [kind, setKind] = useState<Kind | null>(null);
+export default function RaiseRequest({ allowed }: { allowed: Kind[] }) {
+  const [kind, setKind] = useState<Kind | null>(allowed.length === 1 ? allowed[0] : null);
   const [text, setText] = useState("");
   const [state, action, pending] = useActionState(raiseRequests, null);
   const parsed = useMemo(() => parseFlats(text), [text]);
@@ -19,10 +19,12 @@ export default function RaiseRequest() {
   return (
     <section className="mb-8 rounded-2xl border bg-white p-4">
       <h2 className="mb-3 font-bold">Raise a service request</h2>
-      <div className="grid grid-cols-2 gap-3">
-        {big("electrician", "⚡ Electrician", "bg-amber-500")}
-        {big("plumber", "🚰 Plumber", "bg-blue-600")}
-      </div>
+      {allowed.length > 1 && (
+        <div className="grid grid-cols-2 gap-3">
+          {big("electrician", "⚡ Electrician", "bg-amber-500")}
+          {big("plumber", "🚰 Plumber", "bg-blue-600")}
+        </div>
+      )}
       {kind && (
         <form action={action} className="mt-4 space-y-3">
           <input type="hidden" name="kind" value={kind} />

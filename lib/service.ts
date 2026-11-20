@@ -3,19 +3,20 @@ import { ensureTable, sql } from "@/lib/db";
 export type Kind = "electrician" | "plumber";
 export type Req = {
   id: number; flat: string; kind: Kind; status: "Open" | "In Progress" | "Closed";
-  created: string; attended: string | null; closed: string | null; age_min: number;
+  created: string; attended: string | null; closed: string | null; age_min: number; mine: boolean;
 };
 const TZ = "Asia/Kolkata";
 export const KIND_LABEL: Record<Kind, string> = { electrician: "Electrician", plumber: "Plumber" };
 
 // Active requests (oldest first = first come, first served) + requests closed today (IST)
-export async function getQueue(): Promise<Req[]> {
+export async function getQueue(meId?: number): Promise<Req[]> {
   await ensureTable();
   const rows = await sql()`SELECT id, flat, kind, status,
       to_char(created_at AT TIME ZONE 'Asia/Kolkata', 'DD Mon, HH12:MI AM') AS created,
       to_char(attended_at AT TIME ZONE 'Asia/Kolkata', 'HH12:MI AM') AS attended,
       to_char(closed_at AT TIME ZONE 'Asia/Kolkata', 'HH12:MI AM') AS closed,
-      floor(extract(epoch from (now() - created_at)) / 60)::int AS age_min
+      floor(extract(epoch from (now() - created_at)) / 60)::int AS age_min,
+      (created_by = ${meId ?? 0}) AS mine
     FROM service_requests
     WHERE status IN ('Open','In Progress')
        OR (status = 'Closed' AND closed_at >= (date_trunc('day', now() AT TIME ZONE 'Asia/Kolkata') AT TIME ZONE 'Asia/Kolkata'))
