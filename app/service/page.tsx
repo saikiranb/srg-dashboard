@@ -28,7 +28,7 @@ export default async function Service({ searchParams }: { searchParams: Promise<
       <BusyBanner items={busy.filter((e) => kinds.includes(e.kind))} />
       {reqs ? kinds.map((k) => <QueueSection key={k} kind={k} reqs={reqs} mode="public" />) : <p className="text-red-600">Unable to load requests right now.</p>}
       <AutoRefresh seconds={20} />
-      <p className="mt-6 text-center text-xs text-slate-500">To raise a request, please contact the Facility Manager.</p>
+      <p className="mt-6 text-center text-sm text-slate-600">Need an electrician or plumber? <Link href="/resident" className="font-semibold underline">Raise a request</Link> with your registered mobile number.</p>
     </main>
   );
 }

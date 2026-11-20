@@ -1,5 +1,6 @@
 import { getResident } from "@/lib/resident";
-import { getQueue, getEngagements, fmtAge, KIND_LABEL, type Req } from "@/lib/service";
+import { getQueue, getEngagements, getJobMinutes, planQueue, fmtAge, KIND_LABEL, type Req } from "@/lib/service";
+import { ROUTE } from "@/lib/route";
 import BusyBanner from "@/components/BusyBanner";
 import { residentLogoutAction, cancelResidentRequest } from "@/app/resident-actions";
 import SocietyHeader from "@/components/SocietyHeader";
@@ -18,7 +19,14 @@ export default async function ResidentPage() {
 
   const [all, busy] = await Promise.all([getQueue({ mobile: me.mobile }).catch(() => [] as Req[]), getEngagements().catch(() => [])]);
   const mine = all.filter((r) => r.mine);
-  const position = (r: Req) => all.filter((x) => x.kind === r.kind && (x.status === "Open" || x.status === "Acknowledged")).findIndex((x) => x.id === r.id) + 1;
+  const jobs = await getJobMinutes().catch(() => null);
+  const plans = {
+    electrician: planQueue("electrician", all, jobs?.electrician ?? ROUTE.DEFAULT_JOB_MIN).plan,
+    plumber: planQueue("plumber", all, jobs?.plumber ?? ROUTE.DEFAULT_JOB_MIN).plan,
+  };
+  const spot = (r: Req) => plans[r.kind].find((p) => p.item.id === r.id);
+  const position = (r: Req) => spot(r)?.position ?? 0;
+  const eta = (r: Req) => { const s = spot(r); return !s || busy.some((e) => e.kind === r.kind) ? "" : s.etaMin < 3 ? " · starting soon" : ` · expected in ~${fmtAge(s.etaMin)}`; };
   return (
     <main className="mx-auto w-full min-w-0 max-w-3xl px-4 py-6">
       <SocietyHeader />
@@ -37,8 +45,8 @@ export default async function ResidentPage() {
               <div className="font-bold">{r.kind === "electrician" ? "⚡" : "🚰"} {KIND_LABEL[r.kind]} · {r.flat}</div>
               <div className="text-xs text-slate-500">
                 Raised {r.created}
-                {r.status === "Open" && ` · you are #${position(r)} in the queue · waiting ${fmtAge(r.age_min)}`}
-                {r.status === "Acknowledged" && ` · acknowledged ${r.acked ?? ""} — you are #${position(r)} in the queue`}
+                {r.status === "Open" && ` · you are #${position(r)} in the queue${eta(r)}`}
+                {r.status === "Acknowledged" && ` · acknowledged ${r.acked ?? ""} — you are #${position(r)} in the queue${eta(r)}`}
                 {r.status === "In Progress" && r.attended && ` · being attended since ${r.attended}`}
                 {r.status === "Closed" && r.closed && ` · closed ${r.closed}`}
               </div>

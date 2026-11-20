@@ -1,10 +1,11 @@
 import { unstable_cache } from "next/cache";
 import { ensureTable, sql } from "@/lib/db";
+import { planRoute, locOf, ROUTE, type Planned } from "@/lib/route";
 
 export type Kind = "electrician" | "plumber";
 export type Req = {
   id: number; flat: string; kind: Kind; status: "Open" | "Acknowledged" | "In Progress" | "Closed";
-  created: string; acked: string | null; attended: string | null; closed: string | null; age_min: number; mine: boolean; who: string | null; mobile: string | null; source: string;
+  created: string; acked: string | null; attended: string | null; closed: string | null; age_min: number; mine: boolean; who: string | null; mobile: string | null; source: string; attended_ts: number | null; closed_ts: number | null;
 };
 const TZ = "Asia/Kolkata";
 export const KIND_LABEL: Record<Kind, string> = { electrician: "Electrician", plumber: "Plumber" };
@@ -19,6 +20,7 @@ const getQueueRaw = unstable_cache(async (): Promise<RawReq[]> => {
       to_char(attended_at AT TIME ZONE 'Asia/Kolkata', 'HH12:MI AM') AS attended,
       to_char(closed_at AT TIME ZONE 'Asia/Kolkata', 'HH12:MI AM') AS closed,
       floor(extract(epoch from (now() - created_at)) / 60)::int AS age_min,
+      extract(epoch from attended_at)::float8 AS attended_ts, extract(epoch from closed_at)::float8 AS closed_ts,
       created_by, raised_by_name, raised_by_mobile, source
     FROM service_requests
     WHERE status IN ('Open','Acknowledged','In Progress')
@@ -104,3 +106,26 @@ export const getEngagements = unstable_cache(async (): Promise<Engagement[]> => 
       to_char(expected_until AT TIME ZONE 'Asia/Kolkata', 'HH12:MI AM') AS until
     FROM common_work WHERE ended_at IS NULL ORDER BY kind`) as Engagement[];
 }, ["engagements-v1"], { tags: ["queue"], revalidate: 15 });
+
+// Typical job length per trade (median of attend -> close over 30 days), used for ETAs in the smart order.
+export const getJobMinutes = unstable_cache(async (): Promise<Record<Kind, number>> => {
+  await ensureTable();
+  const rows = await sql()`SELECT kind, count(*)::int AS n,
+      percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch from (closed_at - attended_at)) / 60)::float8 AS med
+    FROM service_requests WHERE status='Closed' AND attended_at IS NOT NULL AND closed_at > now() - interval '30 days' GROUP BY kind`;
+  const out: Record<Kind, number> = { electrician: ROUTE.DEFAULT_JOB_MIN, plumber: ROUTE.DEFAULT_JOB_MIN };
+  for (const r of rows) if (r.n >= 5) out[r.kind as Kind] = Math.min(60, Math.max(10, Math.round(r.med)));
+  return out;
+}, ["job-minutes-v1"], { tags: ["queue"], revalidate: 300 });
+
+// Smart order for one trade: start from where the worker is (job in progress, or the one closed in the last 90 min).
+export function planQueue(kind: Kind, reqs: Req[], jobMin: number): { plan: Planned<Req>[]; at: string | null } {
+  const ofKind = reqs.filter((r) => r.kind === kind);
+  const current = ofKind.filter((r) => r.status === "In Progress").sort((a, b) => (b.attended_ts ?? 0) - (a.attended_ts ?? 0))[0]
+    ?? ofKind.filter((r) => r.status === "Closed" && r.closed_ts && Date.now() / 1000 - r.closed_ts < 90 * 60).sort((a, b) => (b.closed_ts ?? 0) - (a.closed_ts ?? 0))[0];
+  const waiting = ofKind.filter((r) => r.status === "Open" || r.status === "Acknowledged");
+  // time left on the job in progress (at least 5 min while it's still open)
+  const busyFor = current?.status === "In Progress" && current.attended_ts
+    ? Math.max(5, Math.round(jobMin - (Date.now() / 1000 - current.attended_ts) / 60)) : 0;
+  return { plan: planRoute(waiting, current ? locOf(current.flat) : null, jobMin, busyFor), at: current?.flat ?? null };
+}
