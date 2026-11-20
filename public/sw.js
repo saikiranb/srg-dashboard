@@ -1,6 +1,6 @@
 // Minimal service worker: makes the app installable and shows an offline page.
 // It deliberately NEVER caches pages or API/data responses, so staff sessions and live queues are always fresh.
-const CACHE = "srg-shell-v1";
+const CACHE = "srg-shell-v2";
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(["/offline.html", "/logo.png"])).then(() => self.skipWaiting()));
 });
