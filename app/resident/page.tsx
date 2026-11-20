@@ -9,7 +9,7 @@ import AutoRefresh from "@/components/AutoRefresh";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Raise a request · Sri Ram Garden", robots: { index: false, follow: false } };
 
-const pill: Record<string, string> = { Open: "bg-amber-100 text-amber-800", "In Progress": "bg-blue-100 text-blue-800", Closed: "bg-emerald-100 text-emerald-800" };
+const pill: Record<string, string> = { Open: "bg-amber-100 text-amber-800", Acknowledged: "bg-violet-100 text-violet-800", "In Progress": "bg-blue-100 text-blue-800", Closed: "bg-emerald-100 text-emerald-800" };
 
 export default async function ResidentPage() {
   const me = await getResident();
@@ -17,7 +17,7 @@ export default async function ResidentPage() {
 
   const all = (await getQueue({ mobile: me.mobile }).catch(() => null)) ?? [];
   const mine = all.filter((r) => r.mine);
-  const position = (r: Req) => all.filter((x) => x.kind === r.kind && x.status === "Open").findIndex((x) => x.id === r.id) + 1;
+  const position = (r: Req) => all.filter((x) => x.kind === r.kind && (x.status === "Open" || x.status === "Acknowledged")).findIndex((x) => x.id === r.id) + 1;
   return (
     <main className="mx-auto w-full min-w-0 max-w-3xl px-4 py-6">
       <SocietyHeader />
@@ -36,12 +36,13 @@ export default async function ResidentPage() {
               <div className="text-xs text-slate-500">
                 Raised {r.created}
                 {r.status === "Open" && ` · you are #${position(r)} in the queue · waiting ${fmtAge(r.age_min)}`}
+                {r.status === "Acknowledged" && ` · acknowledged ${r.acked ?? ""} — you are #${position(r)} in the queue`}
                 {r.status === "In Progress" && r.attended && ` · being attended since ${r.attended}`}
                 {r.status === "Closed" && r.closed && ` · closed ${r.closed}`}
               </div>
             </div>
             <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${pill[r.status]}`}>{r.status}</span>
-            {r.status === "Open" && (
+            {(r.status === "Open" || r.status === "Acknowledged") && (
               <form action={cancelResidentRequest}><input type="hidden" name="id" value={r.id} />
                 <button className="rounded-lg border border-red-200 px-3 py-2 text-xs text-red-600">Cancel</button></form>
             )}

@@ -30,7 +30,7 @@ export async function ensureTable() {
   if (ready) return;
   const q = sql();
   // fast path: one cheap query when the schema already exists (the normal case)
-  const [chk] = await q`SELECT count(*)::int AS n FROM pg_indexes WHERE indexname IN ('service_one_active','service_kind_status','login_attempts_key_at','staff_sessions_user','residents_mobile','push_user')`;
+  const [chk] = await q`SELECT count(*)::int AS n FROM pg_indexes WHERE indexname IN ('service_active_v2','service_kind_status','login_attempts_key_at','staff_sessions_user','residents_mobile','push_user')`;
   if (chk.n === 6) { ready = true; return; }
   await q.transaction([
   q`CREATE TABLE IF NOT EXISTS tasks (
@@ -63,14 +63,19 @@ export async function ensureTable() {
     id SERIAL PRIMARY KEY,
     flat TEXT NOT NULL CHECK (flat ~ '^[A-Z]-([0-9]{1,2}|G)[A-Z]$'),
     kind TEXT NOT NULL CHECK (kind IN ('electrician','plumber')),
-    status TEXT NOT NULL DEFAULT 'Open' CHECK (status IN ('Open','In Progress','Closed','Cancelled')),
+    status TEXT NOT NULL DEFAULT 'Open' CHECK (status IN ('Open','Acknowledged','In Progress','Closed','Cancelled')),
     created_by INT REFERENCES staff_users(id),
     attended_by INT REFERENCES staff_users(id),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     attended_at TIMESTAMPTZ,
     closed_at TIMESTAMPTZ
   )`,
-  q`CREATE UNIQUE INDEX IF NOT EXISTS service_one_active ON service_requests (flat, kind) WHERE status IN ('Open','In Progress')`,
+  q`ALTER TABLE service_requests DROP CONSTRAINT IF EXISTS service_requests_status_check`,
+  q`ALTER TABLE service_requests ADD CONSTRAINT service_requests_status_check CHECK (status IN ('Open','Acknowledged','In Progress','Closed','Cancelled'))`,
+  q`ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS acknowledged_at TIMESTAMPTZ`,
+  q`ALTER TABLE service_requests ADD COLUMN IF NOT EXISTS acknowledged_by INT REFERENCES staff_users(id)`,
+  q`CREATE UNIQUE INDEX IF NOT EXISTS service_active_v2 ON service_requests (flat, kind) WHERE status IN ('Open','Acknowledged','In Progress')`,
+  q`DROP INDEX IF EXISTS service_one_active`,
   q`CREATE INDEX IF NOT EXISTS service_kind_status ON service_requests (kind, status, created_at)`,
   q`ALTER TABLE staff_users DROP CONSTRAINT IF EXISTS staff_users_role_check`,
   q`ALTER TABLE staff_users ADD CONSTRAINT staff_users_role_check CHECK (role IN ('fm','electrician','plumber','technician'))`,

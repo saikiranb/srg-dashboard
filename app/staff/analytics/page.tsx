@@ -22,8 +22,8 @@ export default async function Analytics() {
     <main className="mx-auto w-full min-w-0 max-w-3xl px-4 py-6">
       <SocietyHeader right={<Link href="/staff" className="underline text-slate-500">Back</Link>} />
       <h2 className="mb-4 text-center text-lg font-bold uppercase tracking-wide">Service request analytics</h2>
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {card(a.today.raised, "Raised today")}{card(a.today.open, "Open now")}{card(a.today.in_progress, "In progress now")}{card(a.today.closed_today, "Closed today")}
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
+        {card(a.today.raised, "Raised today")}{card(a.today.open, "Open now")}{card(a.today.acknowledged, "Acknowledged")}{card(a.today.in_progress, "In progress now")}{card(a.today.closed_today, "Closed today")}
       </div>
 
       <section className="mb-6 rounded-xl border bg-white p-4">
@@ -44,10 +44,10 @@ export default async function Analytics() {
 
       <section className="mb-6 rounded-xl border bg-white p-4">
         <h3 className="mb-2 font-semibold">Response &amp; resolution time (last 30 days)</h3>
-        <table className="w-full text-sm"><thead><tr className="text-left text-slate-500"><th className="py-1">Type</th><th>Requests</th><th>Avg. to attend</th><th>Avg. to close</th></tr></thead>
+        <table className="w-full text-sm"><thead><tr className="text-left text-slate-500"><th className="py-1">Type</th><th>Requests</th><th>Avg. to acknowledge</th><th>Avg. to attend</th><th>Avg. to close</th></tr></thead>
           <tbody>{a.times.map((t) => (<tr key={t.kind} className="border-t"><td className="py-1.5">{KIND_LABEL[t.kind]}</td><td>{t.total}</td>
-            <td>{t.avg_response_min == null ? "–" : fmtAge(t.avg_response_min)}</td><td>{t.avg_resolution_min == null ? "–" : fmtAge(t.avg_resolution_min)}</td></tr>))}
-            {!a.times.length && <tr><td colSpan={4} className="py-3 text-slate-500">No data yet.</td></tr>}</tbody></table>
+            <td>{t.avg_ack_min == null ? "–" : fmtAge(t.avg_ack_min)}</td><td>{t.avg_response_min == null ? "–" : fmtAge(t.avg_response_min)}</td><td>{t.avg_resolution_min == null ? "–" : fmtAge(t.avg_resolution_min)}</td></tr>))}
+            {!a.times.length && <tr><td colSpan={5} className="py-3 text-slate-500">No data yet.</td></tr>}</tbody></table>
       </section>
 
       <div className="grid gap-4 sm:grid-cols-2">

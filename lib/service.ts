@@ -3,8 +3,8 @@ import { ensureTable, sql } from "@/lib/db";
 
 export type Kind = "electrician" | "plumber";
 export type Req = {
-  id: number; flat: string; kind: Kind; status: "Open" | "In Progress" | "Closed";
-  created: string; attended: string | null; closed: string | null; age_min: number; mine: boolean; who: string | null; mobile: string | null; source: string;
+  id: number; flat: string; kind: Kind; status: "Open" | "Acknowledged" | "In Progress" | "Closed";
+  created: string; acked: string | null; attended: string | null; closed: string | null; age_min: number; mine: boolean; who: string | null; mobile: string | null; source: string;
 };
 const TZ = "Asia/Kolkata";
 export const KIND_LABEL: Record<Kind, string> = { electrician: "Electrician", plumber: "Plumber" };
@@ -15,12 +15,13 @@ const getQueueRaw = unstable_cache(async (): Promise<RawReq[]> => {
   await ensureTable();
   const rows = await sql()`SELECT id, flat, kind, status,
       to_char(created_at AT TIME ZONE 'Asia/Kolkata', 'DD Mon, HH12:MI AM') AS created,
+      to_char(acknowledged_at AT TIME ZONE 'Asia/Kolkata', 'HH12:MI AM') AS acked,
       to_char(attended_at AT TIME ZONE 'Asia/Kolkata', 'HH12:MI AM') AS attended,
       to_char(closed_at AT TIME ZONE 'Asia/Kolkata', 'HH12:MI AM') AS closed,
       floor(extract(epoch from (now() - created_at)) / 60)::int AS age_min,
       created_by, raised_by_name, raised_by_mobile, source
     FROM service_requests
-    WHERE status IN ('Open','In Progress')
+    WHERE status IN ('Open','Acknowledged','In Progress')
        OR (status = 'Closed' AND closed_at >= (date_trunc('day', now() AT TIME ZONE 'Asia/Kolkata') AT TIME ZONE 'Asia/Kolkata'))
     ORDER BY created_at, id`;
   return rows as RawReq[];
@@ -53,10 +54,12 @@ export async function getAnalytics() {
   const [today] = await q`SELECT
       count(*) FILTER (WHERE (created_at AT TIME ZONE 'Asia/Kolkata')::date = (now() AT TIME ZONE 'Asia/Kolkata')::date)::int AS raised,
       count(*) FILTER (WHERE status='Open')::int AS open,
+      count(*) FILTER (WHERE status='Acknowledged')::int AS acknowledged,
       count(*) FILTER (WHERE status='In Progress')::int AS in_progress,
       count(*) FILTER (WHERE status='Closed' AND (closed_at AT TIME ZONE 'Asia/Kolkata')::date = (now() AT TIME ZONE 'Asia/Kolkata')::date)::int AS closed_today
     FROM service_requests WHERE status <> 'Cancelled'`;
   const times = await q`SELECT kind, count(*)::int AS total,
+      round(avg(extract(epoch from (acknowledged_at - created_at)) / 60))::int AS avg_ack_min,
       round(avg(extract(epoch from (attended_at - created_at)) / 60))::int AS avg_response_min,
       round(avg(extract(epoch from (closed_at - created_at)) / 60))::int AS avg_resolution_min
     FROM service_requests WHERE status <> 'Cancelled' AND created_at > now() - interval '30 days' GROUP BY kind ORDER BY kind`;
@@ -66,8 +69,8 @@ export async function getAnalytics() {
     WHERE status <> 'Cancelled' AND created_at > now() - interval '30 days' GROUP BY flat ORDER BY n DESC, flat LIMIT 5`;
   return {
     perDay: perDay as { day: string; label: string; electrician: number; plumber: number }[],
-    today: today as { raised: number; open: number; in_progress: number; closed_today: number },
-    times: times as { kind: Kind; total: number; avg_response_min: number | null; avg_resolution_min: number | null }[],
+    today: today as { raised: number; open: number; acknowledged: number; in_progress: number; closed_today: number },
+    times: times as { kind: Kind; total: number; avg_ack_min: number | null; avg_response_min: number | null; avg_resolution_min: number | null }[],
     byBlock: byBlock as { block: string; n: number }[],
     topFlats: topFlats as { flat: string; n: number }[],
   };

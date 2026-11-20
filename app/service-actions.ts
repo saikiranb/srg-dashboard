@@ -43,7 +43,7 @@ export async function raiseRequests(_: unknown, fd: FormData) {
   const q = sql();
   const res = await q.transaction(flats.map((f) =>
     q`INSERT INTO service_requests (flat, kind, created_by) VALUES (${f.code}, ${kind}, ${me.id})
-      ON CONFLICT (flat, kind) WHERE status IN ('Open','In Progress') DO NOTHING RETURNING flat`));
+      ON CONFLICT (flat, kind) WHERE status IN ('Open','Acknowledged','In Progress') DO NOTHING RETURNING flat`));
   const added = res.flat().map((r) => r.flat as string);
   const dup = flats.map((f) => f.code).filter((c) => !added.includes(c));
   done();
@@ -53,11 +53,21 @@ export async function raiseRequests(_: unknown, fd: FormData) {
   return { ok: (msg + dmsg).trim() };
 }
 
+// Step 1: someone (FM, electrician, plumber) confirms they have seen the request
+export async function acknowledgeRequest(fd: FormData) {
+  const me = await getStaff();
+  if (!me) throw new Error("Unauthorized");
+  await sql()`UPDATE service_requests SET status='Acknowledged', acknowledged_by=${me.id}, acknowledged_at=now()
+    WHERE id=${id(fd)} AND kind = ANY(${kindsFor(me.role)}) AND status='Open'`;
+  done();
+}
+
+// Step 2: work has started (allowed straight from Open too, if nobody pressed Acknowledge first)
 export async function attendRequest(fd: FormData) {
   const me = await getStaff();
   if (!me || me.role === "fm") throw new Error("Unauthorized");
   await sql()`UPDATE service_requests SET status='In Progress', attended_by=${me.id}, attended_at=now()
-    WHERE id=${id(fd)} AND kind = ANY(${kindsFor(me.role)}) AND status='Open'`; // atomic: two people can't take the same job
+    WHERE id=${id(fd)} AND kind = ANY(${kindsFor(me.role)}) AND status IN ('Open','Acknowledged')`; // atomic: two people can't take the same job
   done();
 }
 
@@ -74,8 +84,8 @@ export async function cancelRequest(fd: FormData) {
   if (!me) throw new Error("Unauthorized");
   // FM can cancel any open request; electrician/plumber only the open requests they raised themselves
   if (me.role === "fm")
-    await sql()`UPDATE service_requests SET status='Cancelled' WHERE id=${id(fd)} AND status='Open'`;
+    await sql()`UPDATE service_requests SET status='Cancelled' WHERE id=${id(fd)} AND status IN ('Open','Acknowledged')`;
   else
-    await sql()`UPDATE service_requests SET status='Cancelled' WHERE id=${id(fd)} AND status='Open' AND created_by=${me.id} AND kind = ANY(${kindsFor(me.role)})`;
+    await sql()`UPDATE service_requests SET status='Cancelled' WHERE id=${id(fd)} AND status IN ('Open','Acknowledged') AND created_by=${me.id} AND kind = ANY(${kindsFor(me.role)})`;
   done();
 }
