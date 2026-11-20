@@ -22,8 +22,8 @@ export default async function Analytics() {
     <main className="mx-auto w-full min-w-0 max-w-3xl px-4 py-6">
       <SocietyHeader right={<Link href="/staff" className="underline text-slate-500">Back</Link>} />
       <h2 className="mb-4 text-center text-lg font-bold uppercase tracking-wide">Service request analytics</h2>
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
-        {card(a.today.raised, "Raised today")}{card(a.today.open, "Open now")}{card(a.today.acknowledged, "Acknowledged")}{card(a.today.in_progress, "In progress now")}{card(a.today.closed_today, "Closed today")}
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {card(a.today.raised, "Raised today")}{card(a.today.open, "Open now")}{card(a.today.acknowledged, "Acknowledged")}{card(a.today.on_hold, "On hold")}{card(a.today.in_progress, "In progress now")}{card(a.today.closed_today, "Closed today")}
       </div>
 
       <section className="mb-6 rounded-xl border bg-white p-4">

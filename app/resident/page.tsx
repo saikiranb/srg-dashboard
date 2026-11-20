@@ -2,7 +2,7 @@ import { getResident } from "@/lib/resident";
 import { getQueue, getEngagements, getJobMinutes, planQueue, fmtAge, KIND_LABEL, type Req } from "@/lib/service";
 import { ROUTE } from "@/lib/route";
 import BusyBanner from "@/components/BusyBanner";
-import { residentLogoutAction, cancelResidentRequest } from "@/app/resident-actions";
+import { residentLogoutAction, cancelResidentRequest, residentMaterialReady } from "@/app/resident-actions";
 import SocietyHeader from "@/components/SocietyHeader";
 import ResidentLogin from "@/components/ResidentLogin";
 import ResidentRaise from "@/components/ResidentRaise";
@@ -11,7 +11,7 @@ import AutoRefresh from "@/components/AutoRefresh";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Raise a request · Sri Ram Garden", robots: { index: false, follow: false } };
 
-const pill: Record<string, string> = { Open: "bg-amber-100 text-amber-800", Acknowledged: "bg-violet-100 text-violet-800", "In Progress": "bg-blue-100 text-blue-800", Closed: "bg-emerald-100 text-emerald-800" };
+const pill: Record<string, string> = { Open: "bg-amber-100 text-amber-800", Acknowledged: "bg-violet-100 text-violet-800", "On Hold": "bg-rose-100 text-rose-800", "In Progress": "bg-blue-100 text-blue-800", Closed: "bg-emerald-100 text-emerald-800" };
 
 export default async function ResidentPage() {
   const me = await getResident();
@@ -50,9 +50,22 @@ export default async function ResidentPage() {
                 {r.status === "In Progress" && r.attended && ` · being attended since ${r.attended}`}
                 {r.status === "Closed" && r.closed && ` · closed ${r.closed}`}
               </div>
+              {r.status === "On Hold" && (
+                <div className="mt-2 rounded-lg bg-rose-50 p-2 text-sm text-rose-900">
+                  {r.hold_kind === "material" ? <>🧰 The {KIND_LABEL[r.kind].toLowerCase()} needs: <b>{r.hold_reason}</b></>
+                    : r.hold_kind === "unavailable" ? <>⏸ Paused — nobody was available at the flat{r.hold_reason ? ` (${r.hold_reason})` : ""}</>
+                    : <>⏸ Paused: {r.hold_reason}</>}
+                  <div className="mt-1 text-xs">When ready, tap the button — your request goes back in the queue and keeps your earlier waiting time.</div>
+                </div>
+              )}
+              {r.resumed && <div className="mt-1 text-xs font-medium text-emerald-700">✅ Back in the queue</div>}
             </div>
             <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${pill[r.status]}`}>{r.status}</span>
-            {(r.status === "Open" || r.status === "Acknowledged") && (
+            {r.status === "On Hold" && (
+              <form action={residentMaterialReady} className="w-full sm:w-auto"><input type="hidden" name="id" value={r.id} />
+                <button className="w-full rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">{r.hold_kind === "material" ? "✅ Material is ready" : "✅ Ready now"}</button></form>
+            )}
+            {(r.status === "Open" || r.status === "Acknowledged" || r.status === "On Hold") && (
               <form action={cancelResidentRequest}><input type="hidden" name="id" value={r.id} />
                 <button className="rounded-lg border border-red-200 px-3 py-2 text-xs text-red-600">Cancel</button></form>
             )}

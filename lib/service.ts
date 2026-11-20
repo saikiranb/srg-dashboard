@@ -4,8 +4,10 @@ import { planRoute, locOf, ROUTE, type Planned } from "@/lib/route";
 
 export type Kind = "electrician" | "plumber";
 export type Req = {
-  id: number; flat: string; kind: Kind; status: "Open" | "Acknowledged" | "In Progress" | "Closed";
+  id: number; flat: string; kind: Kind; status: "Open" | "Acknowledged" | "In Progress" | "On Hold" | "Closed";
   created: string; acked: string | null; attended: string | null; closed: string | null; age_min: number; mine: boolean; who: string | null; mobile: string | null; source: string; attended_ts: number | null; closed_ts: number | null;
+  hold_kind: "material" | "unavailable" | "other" | null; hold_reason: string | null; held: string | null; held_ts: number | null;
+  queue_age_min: number; resumed: boolean;
 };
 const TZ = "Asia/Kolkata";
 export const KIND_LABEL: Record<Kind, string> = { electrician: "Electrician", plumber: "Plumber" };
@@ -21,9 +23,13 @@ const getQueueRaw = unstable_cache(async (): Promise<RawReq[]> => {
       to_char(closed_at AT TIME ZONE 'Asia/Kolkata', 'HH12:MI AM') AS closed,
       floor(extract(epoch from (now() - created_at)) / 60)::int AS age_min,
       extract(epoch from attended_at)::float8 AS attended_ts, extract(epoch from closed_at)::float8 AS closed_ts,
+      hold_kind, hold_reason, to_char(held_at AT TIME ZONE 'Asia/Kolkata', 'DD Mon, HH12:MI AM') AS held,
+      extract(epoch from held_at)::float8 AS held_ts,
+      floor(extract(epoch from (now() - coalesce(queued_at, created_at))) / 60)::int AS queue_age_min,
+      (material_ready_at IS NOT NULL AND status IN ('Open','Acknowledged')) AS resumed,
       created_by, raised_by_name, raised_by_mobile, source
     FROM service_requests
-    WHERE status IN ('Open','Acknowledged','In Progress')
+    WHERE status IN ('Open','Acknowledged','In Progress','On Hold')
        OR (status = 'Closed' AND closed_at >= (date_trunc('day', now() AT TIME ZONE 'Asia/Kolkata') AT TIME ZONE 'Asia/Kolkata'))
     ORDER BY created_at, id`;
   return rows as RawReq[];
@@ -58,6 +64,7 @@ export async function getAnalytics() {
       count(*) FILTER (WHERE status='Open')::int AS open,
       count(*) FILTER (WHERE status='Acknowledged')::int AS acknowledged,
       count(*) FILTER (WHERE status='In Progress')::int AS in_progress,
+      count(*) FILTER (WHERE status='On Hold')::int AS on_hold,
       count(*) FILTER (WHERE status='Closed' AND (closed_at AT TIME ZONE 'Asia/Kolkata')::date = (now() AT TIME ZONE 'Asia/Kolkata')::date)::int AS closed_today
     FROM service_requests WHERE status <> 'Cancelled'`;
   const times = await q`SELECT kind, count(*)::int AS total,
@@ -71,7 +78,7 @@ export async function getAnalytics() {
     WHERE status <> 'Cancelled' AND created_at > now() - interval '30 days' GROUP BY flat ORDER BY n DESC, flat LIMIT 5`;
   return {
     perDay: perDay as { day: string; label: string; electrician: number; plumber: number }[],
-    today: today as { raised: number; open: number; acknowledged: number; in_progress: number; closed_today: number },
+    today: today as { raised: number; open: number; acknowledged: number; in_progress: number; on_hold: number; closed_today: number },
     times: times as { kind: Kind; total: number; avg_ack_min: number | null; avg_response_min: number | null; avg_resolution_min: number | null }[],
     byBlock: byBlock as { block: string; n: number }[],
     topFlats: topFlats as { flat: string; n: number }[],
@@ -121,11 +128,19 @@ export const getJobMinutes = unstable_cache(async (): Promise<Record<Kind, numbe
 // Smart order for one trade: start from where the worker is (job in progress, or the one closed in the last 90 min).
 export function planQueue(kind: Kind, reqs: Req[], jobMin: number): { plan: Planned<Req>[]; at: string | null } {
   const ofKind = reqs.filter((r) => r.kind === kind);
+  const recent = (ts: number | null) => ts != null && Date.now() / 1000 - ts < 90 * 60;
+  // where the worker is: job in progress, else the flat they just closed or paused (last 90 min)
   const current = ofKind.filter((r) => r.status === "In Progress").sort((a, b) => (b.attended_ts ?? 0) - (a.attended_ts ?? 0))[0]
-    ?? ofKind.filter((r) => r.status === "Closed" && r.closed_ts && Date.now() / 1000 - r.closed_ts < 90 * 60).sort((a, b) => (b.closed_ts ?? 0) - (a.closed_ts ?? 0))[0];
+    ?? ofKind
+      .map((r) => ({ r, ts: r.status === "Closed" ? r.closed_ts : r.status === "On Hold" ? r.held_ts : null }))
+      .filter((x) => recent(x.ts)).sort((a, b) => (b.ts ?? 0) - (a.ts ?? 0))[0]?.r;
   const waiting = ofKind.filter((r) => r.status === "Open" || r.status === "Acknowledged");
   // time left on the job in progress (at least 5 min while it's still open)
   const busyFor = current?.status === "In Progress" && current.attended_ts
     ? Math.max(5, Math.round(jobMin - (Date.now() / 1000 - current.attended_ts) / 60)) : 0;
-  return { plan: planRoute(waiting, current ? locOf(current.flat) : null, jobMin, busyFor), at: current?.flat ?? null };
+  // route on queue age (a request that came back after "material ready" keeps its earlier wait, not the hold time)
+  const byId = new Map(waiting.map((r) => [r.id, r]));
+  const plan = planRoute(waiting.map((r) => ({ ...r, age_min: r.queue_age_min })), current ? locOf(current.flat) : null, jobMin, busyFor)
+    .map((p) => ({ ...p, item: byId.get(p.item.id)! }));
+  return { plan, at: current?.flat ?? null };
 }

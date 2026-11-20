@@ -43,7 +43,7 @@ export async function raiseRequests(_: unknown, fd: FormData) {
   const q = sql();
   const res = await q.transaction(flats.map((f) =>
     q`INSERT INTO service_requests (flat, kind, created_by) VALUES (${f.code}, ${kind}, ${me.id})
-      ON CONFLICT (flat, kind) WHERE status IN ('Open','Acknowledged','In Progress') DO NOTHING RETURNING flat`));
+      ON CONFLICT (flat, kind) WHERE status IN ('Open','Acknowledged','In Progress','On Hold') DO NOTHING RETURNING flat`));
   const added = res.flat().map((r) => r.flat as string);
   const dup = flats.map((f) => f.code).filter((c) => !added.includes(c));
   done();
@@ -84,7 +84,7 @@ export async function cancelRequest(fd: FormData) {
   if (!me) throw new Error("Unauthorized");
   // FM can cancel any open request; electrician/plumber only the open requests they raised themselves
   if (me.role === "fm")
-    await sql()`UPDATE service_requests SET status='Cancelled' WHERE id=${id(fd)} AND status IN ('Open','Acknowledged')`;
+    await sql()`UPDATE service_requests SET status='Cancelled' WHERE id=${id(fd)} AND status IN ('Open','Acknowledged','On Hold')`;
   else
     await sql()`UPDATE service_requests SET status='Cancelled' WHERE id=${id(fd)} AND status IN ('Open','Acknowledged') AND created_by=${me.id} AND kind = ANY(${kindsFor(me.role)})`;
   done();
@@ -122,4 +122,43 @@ export async function endCommonWork(fd: FormData) {
   if (kind !== "electrician" && kind !== "plumber") throw new Error("Invalid");
   await sql()`UPDATE common_work SET ended_at = now() WHERE kind = ${kind} AND ended_at IS NULL`;
   done();
+}
+
+// ---------- pause / resume (material needed etc.) ----------
+const HOLD_KINDS = ["material", "unavailable", "other"] as const;
+
+// Worker (or FM) pauses a job, e.g. resident must buy white cement / a switch first.
+export async function holdRequest(_: unknown, fd: FormData) {
+  const me = await getStaff();
+  if (!me) return { error: "Please sign in again" };
+  const hk = HOLD_KINDS.find((k) => k === fd.get("hold_kind"));
+  if (!hk) return { error: "Choose a reason" };
+  const note = String(fd.get("note") ?? "").replace(/[\u0000-\u001F\u007F]/g, " ").trim().slice(0, 200);
+  if (hk !== "unavailable" && !note) return { error: hk === "material" ? "List the material needed, e.g. White cement 1 kg, 6A switch" : "Add a short reason" };
+  const r = await sql()`UPDATE service_requests SET status='On Hold', hold_kind=${hk}, hold_reason=${note || null},
+      held_at=now(), held_by=${me.id}, material_ready_at=NULL
+    WHERE id=${id(fd)} AND kind = ANY(${kindsFor(me.role)}) AND status IN ('In Progress','Acknowledged') RETURNING id`;
+  if (!r.length) return { error: "This request can't be paused now" };
+  done();
+  return { ok: "Paused" };
+}
+
+// Worker continues the paused job straight away (e.g. got the material himself).
+export async function resumeRequest(fd: FormData) {
+  const me = await getStaff();
+  if (!me || me.role === "fm") throw new Error("Unauthorized");
+  await sql()`UPDATE service_requests SET status='In Progress', attended_by=${me.id}, attended_at=coalesce(attended_at, now())
+    WHERE id=${id(fd)} AND kind = ANY(${kindsFor(me.role)}) AND status='On Hold'`;
+  done();
+}
+
+// Material arrived -> back into the waiting queue, keeping the wait the resident had before work started.
+export async function requeueRequest(fd: FormData) {
+  const me = await getStaff();
+  if (!me) throw new Error("Unauthorized");
+  const rows = await sql()`UPDATE service_requests SET status='Acknowledged', material_ready_at=now(),
+      queued_at = now() - coalesce(attended_at - created_at, interval '0')
+    WHERE id=${id(fd)} AND kind = ANY(${kindsFor(me.role)}) AND status='On Hold' RETURNING flat, kind`;
+  done();
+  if (rows.length) after(() => notifyStaff(rows[0].kind, [rows[0].flat], { excludeUserId: me.id, title: "Material ready", body: `Flat ${rows[0].flat} is ready to continue` }));
 }

@@ -14,7 +14,7 @@ function configure() {
 }
 
 // Sends a phone notification to every subscribed FM + the trade's staff (+ the shared Electrician/Plumber login).
-export async function notifyStaff(kind: Kind, flats: string[], opts: { excludeUserId?: number } = {}) {
+export async function notifyStaff(kind: Kind, flats: string[], opts: { excludeUserId?: number; title?: string; body?: string } = {}) {
   try {
     if (!configure() || !flats.length) return;
     const roles = kind === "electrician" ? ["fm", "electrician", "technician"] : ["fm", "plumber", "technician"];
@@ -22,8 +22,8 @@ export async function notifyStaff(kind: Kind, flats: string[], opts: { excludeUs
       JOIN staff_users u ON u.id = p.user_id WHERE u.active AND u.role = ANY(${roles}) AND u.id <> ${opts.excludeUserId ?? 0}`;
     const label = kind === "electrician" ? "Electrician" : "Plumber";
     const payload = JSON.stringify({
-      title: `New ${label} request`,
-      body: flats.length === 1 ? `Flat ${flats[0]}` : `${flats.length} flats: ${flats.slice(0, 6).join(", ")}${flats.length > 6 ? "…" : ""}`,
+      title: opts.title ?? `New ${label} request`,
+      body: opts.body ?? (flats.length === 1 ? `Flat ${flats[0]}` : `${flats.length} flats: ${flats.slice(0, 6).join(", ")}${flats.length > 6 ? "…" : ""}`),
       url: "/staff", tag: `req-${kind}`,
     });
     const ok = (e: string) => { try { const h = new URL(e).hostname; return ["fcm.googleapis.com", "updates.push.services.mozilla.com", "web.push.apple.com", "push.services.mozilla.com"].includes(h) || h.endsWith(".notify.windows.com") || h.endsWith(".push.apple.com"); } catch { return false; } };

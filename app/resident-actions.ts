@@ -39,7 +39,7 @@ export async function raiseResidentRequest(_: unknown, fd: FormData) {
 
   const ins = await q`INSERT INTO service_requests (flat, kind, source, raised_by_name, raised_by_mobile)
     VALUES (${flat}, ${kind}, 'resident', ${me.name}, ${me.mobile})
-    ON CONFLICT (flat, kind) WHERE status IN ('Open','Acknowledged','In Progress') DO NOTHING RETURNING id`;
+    ON CONFLICT (flat, kind) WHERE status IN ('Open','Acknowledged','In Progress','On Hold') DO NOTHING RETURNING id`;
   updateTag("queue"); revalidatePath("/service"); revalidatePath("/staff"); revalidatePath("/resident");
   if (!ins.length) return { ok: `A ${kind} request for ${flat} is already in the queue — no need to raise it again.` };
   after(() => notifyStaff(kind, [flat])); // sound/phone alert to FM + the trade's staff
@@ -54,6 +54,19 @@ export async function cancelResidentRequest(fd: FormData) {
   if (!me) throw new Error("Unauthorized");
   const id = Number(fd.get("id"));
   if (!Number.isSafeInteger(id) || id <= 0) throw new Error("Invalid id");
-  await sql()`UPDATE service_requests SET status='Cancelled' WHERE id=${id} AND status IN ('Open','Acknowledged') AND source='resident' AND raised_by_mobile=${me.mobile}`;
+  await sql()`UPDATE service_requests SET status='Cancelled' WHERE id=${id} AND status IN ('Open','Acknowledged','On Hold') AND source='resident' AND raised_by_mobile=${me.mobile}`;
   updateTag("queue"); revalidatePath("/service"); revalidatePath("/staff"); revalidatePath("/resident");
+}
+
+// Resident has arranged the material the electrician/plumber asked for -> request goes back in the queue.
+export async function residentMaterialReady(fd: FormData) {
+  const me = await getResident();
+  if (!me) throw new Error("Unauthorized");
+  const id = Number(fd.get("id"));
+  if (!Number.isSafeInteger(id) || id <= 0) throw new Error("Invalid id");
+  const rows = await sql()`UPDATE service_requests SET status='Acknowledged', material_ready_at=now(),
+      queued_at = now() - coalesce(attended_at - created_at, interval '0')
+    WHERE id=${id} AND status='On Hold' AND flat = ANY(${me.flats}) RETURNING flat, kind`;
+  updateTag("queue"); revalidatePath("/service"); revalidatePath("/staff"); revalidatePath("/resident");
+  if (rows.length) after(() => notifyStaff(rows[0].kind, [rows[0].flat], { title: "Material ready", body: `Flat ${rows[0].flat}: resident says material is ready` }));
 }
