@@ -48,7 +48,7 @@ export async function importResidents(_: unknown, fd: FormData) {
     if (!name) return void problems.push(`Row ${rowNo}: name missing`);
     if (!mobile) return void problems.push(`Row ${rowNo}: invalid mobile`);
     const flat = flatCode(c.block < 0 ? "" : cell(row[c.block], 10), cell(row[c.flat], 20));
-    if (!flat) return void problems.push(`Row ${rowNo}: flat/block not valid (A: floors 6–12, B: G–14)`);
+    if (!flat) return void problems.push(`Row ${rowNo}: no such flat (A: 6–12, A–I · B: GA–GG/GI, 1–14, A–J)`);
     if (seen.has(mobile + flat)) return;
     seen.add(mobile + flat);
     stmts.push(q`INSERT INTO residents (name, mobile, flat) VALUES (${name}, ${mobile}, ${flat})
@@ -68,7 +68,7 @@ export async function addResident(_: unknown, fd: FormData) {
   const flat = flatCode(clean(fd.get("block"), 10), clean(fd.get("flat"), 20));
   if (!name) return { error: "Name is required" };
   if (!mobile) return { error: "Enter a valid 10-digit mobile number" };
-  if (!flat) return { error: "Not a valid flat. A block: floors 6–12 · B block: G–14 (e.g. block B, flat 4G)" };
+  if (!flat) return { error: "No such flat. A block: floors 6–12, flats A–I · B block: GA–GG & GI, floors 1–14 flats A–J" };
   await sql()`INSERT INTO residents (name, mobile, flat) VALUES (${name}, ${mobile}, ${flat})
     ON CONFLICT (mobile, flat) DO UPDATE SET name = EXCLUDED.name`;
   done();
